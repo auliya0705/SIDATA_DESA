@@ -13,7 +13,7 @@ export default function Topbar({
 
   // Mock user data - nanti ganti dengan data dari API/auth
   const user = {
-    name: "Auliya Shadrina",
+    name: "Muhammad Vendra",
     role: "Admin - Kepala Desa",
   };
 
