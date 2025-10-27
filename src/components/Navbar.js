@@ -3,10 +3,12 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Map } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 export default function Navbar() {
   const [show, setShow] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
+  const pathname = usePathname();
 
   useEffect(() => {
     const controlNavbar = () => {
@@ -29,14 +31,14 @@ export default function Navbar() {
 
   return (
     <nav
-      className={`fixed top-0 w-full bg-white shadow-md z-50 transition-transform duration-300 ease-in-out ${
-        show ? "translate-y-0" : "-translate-y-full"
-      }`}
+      className={`fixed top-0 w-full bg-white shadow-md transition-transform duration-300 ease-in-out 
+        ${show ? "translate-y-0" : "-translate-y-full"}
+        ${pathname === "/peta" ? "z-[9999]" : "z-50"}`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
-          <div className="flex items-center space-x-3">
+          <Link href="/" className="flex items-center space-x-3">
             <Image
               src="/images/logobb.png"
               alt="Logo"
@@ -45,7 +47,7 @@ export default function Navbar() {
               priority
             />
             <span className="text-teal-800 font-bold text-sm">SIDATA DESA</span>
-          </div>
+          </Link>
 
           {/* Navigasi peta */}
           <div className="flex items-center space-x-6">
