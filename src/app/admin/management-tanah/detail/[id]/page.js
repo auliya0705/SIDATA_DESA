@@ -81,10 +81,9 @@ export default function DetailTanahOwnerPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Management Tanah</h1>
-          <p className="text-sm text-gray-500">
-            Dashboard / Management Tanah / Detail
-          </p>
+          <h1 className="text-2xl font-bold text-gray-800">
+            Detail Data Tanah
+          </h1>
         </div>
         <Link
           href="/admin/management-tanah"
@@ -139,7 +138,7 @@ export default function DetailTanahOwnerPage() {
       {/* Title */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h3 className="text-xl font-semibold text-gray-800">
-          Data Bidang Tanah {ownerData.nama_pemilik}
+          Data Bidang Tanah - {ownerData.nama_pemilik}
         </h3>
       </div>
 

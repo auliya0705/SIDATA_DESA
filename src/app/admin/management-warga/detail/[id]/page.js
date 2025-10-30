@@ -68,9 +68,6 @@ export default function DetailWargaPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Detail Penduduk</h1>
-          <p className="text-sm text-gray-500">
-            Dashboard / Management Warga / Detail
-          </p>
         </div>
         <Link
           href="/admin/management-warga"

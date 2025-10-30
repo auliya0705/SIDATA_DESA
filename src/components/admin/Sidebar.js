@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -11,6 +11,7 @@ import {
   History,
   Menu,
   X,
+  CheckCircle,
 } from "lucide-react";
 
 const menuItems = [
@@ -39,6 +40,18 @@ const menuItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
+  const [isKepalaDesa, setIsKepalaDesa] = useState(false);
+
+  useEffect(() => {
+    // Check if user is Kepala Desa
+    if (typeof window !== "undefined") {
+      const userStr = localStorage.getItem("user");
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        setIsKepalaDesa(user.role === "kepala_desa");
+      }
+    }
+  }, []);
 
   return (
     <>
@@ -111,6 +124,33 @@ export default function Sidebar() {
                 </li>
               );
             })}
+
+            {/* Approval Menu - Kepala Desa Only */}
+            {isKepalaDesa && (
+              <li>
+                <Link
+                  href="/admin/approval"
+                  onClick={() => setIsOpen(false)}
+                  className={`
+                    flex items-center space-x-3 px-4 py-3 rounded-lg
+                    transition-colors duration-200
+                    ${
+                      pathname === "/admin/approval"
+                        ? "bg-teal-800 text-white"
+                        : "text-teal-100 hover:bg-teal-600"
+                    }
+                  `}
+                >
+                  <CheckCircle size={20} />
+                  <span className="font-medium">Approval</span>
+
+                  {/* Badge untuk pending count (opsional) */}
+                  <span className="ml-auto bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-1 rounded-full">
+                    5
+                  </span>
+                </Link>
+              </li>
+            )}
           </ul>
         </nav>
 

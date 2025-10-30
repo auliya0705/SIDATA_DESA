@@ -99,12 +99,6 @@ export default function ManagementTanahPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-800">Management Tanah</h1>
-        <p className="text-sm text-gray-500">Dashboard / Management Tanah</p>
-      </div>
-
       {/* Title Section */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex justify-between items-center">
