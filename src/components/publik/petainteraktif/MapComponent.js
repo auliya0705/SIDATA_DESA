@@ -37,8 +37,7 @@ export default function MapComponent({ filter }) {
         params.set("status_hak", String(filter.bidang).toUpperCase());
       } else if (filter.kategori === "penggunaan") {
         const val =
-          PENGGUNAAN_MAP[String(filter.bidang).toUpperCase()] ||
-          filter.bidang;
+          PENGGUNAAN_MAP[String(filter.bidang).toUpperCase()] || filter.bidang;
         params.set("penggunaan", val);
       }
     }
@@ -50,6 +49,12 @@ export default function MapComponent({ filter }) {
   }, [filter]);
 
   useEffect(() => {
+    if (!filter || !filter.kategori || !filter.bidang) {
+      setData(null);
+      setLoading(false);
+      return;
+    }
+    
     const ac = new AbortController();
     setLoading(true);
     setError(null);

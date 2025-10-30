@@ -1,14 +1,17 @@
 "use client";
 import dynamic from "next/dynamic";
 import { useState } from "react";
-import FilterPopup from "@/components/petainteraktif/FilterPopup";
-import InfoPopup from "@/components/petainteraktif/InfoPopup";
+import FilterPopup from "@/components/publik/petainteraktif/FilterPopup";
+import InfoPopup from "@/components/publik/petainteraktif/InfoPopup";
 import { Sliders, Info } from "lucide-react";
 
 // Muat Map secara dinamis agar tidak error di SSR
-const MapComponent = dynamic(() => import("@/components/petainteraktif/MapComponent"), {
-  ssr: false,
-});
+const MapComponent = dynamic(
+  () => import("@/components/publik/petainteraktif/MapComponent"),
+  {
+    ssr: false,
+  }
+);
 
 export default function PetaPage() {
   const [kategori, setKategori] = useState("status");
