@@ -3,7 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function TanahForm({ initialData = null, mode = "create" }) {
+export default function TanahForm({
+  initialData = null,
+  mode = "create",
+  isIdentitasReadOnly = false,
+}) {
   const router = useRouter();
 
   const defaultFormData = {
@@ -117,7 +121,7 @@ export default function TanahForm({ initialData = null, mode = "create" }) {
         </h3>
 
         <div className="space-y-4">
-          {/* Nama Lengkap */}
+          {/* Nama Lengkap - READ ONLY */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Nama Lengkap
@@ -127,12 +131,15 @@ export default function TanahForm({ initialData = null, mode = "create" }) {
               name="nama_pemilik"
               value={formData.nama_pemilik}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              readOnly={isIdentitasReadOnly}
+              className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent ${
+                isIdentitasReadOnly ? "bg-gray-100 cursor-not-allowed" : ""
+              }`}
               required
             />
           </div>
 
-          {/* Nomor Urut & Jumlah Luas */}
+          {/* Nomor Urut & Jumlah Luas - READ ONLY */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -143,7 +150,10 @@ export default function TanahForm({ initialData = null, mode = "create" }) {
                 name="nomor_urut"
                 value={formData.nomor_urut}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                readOnly={isIdentitasReadOnly}
+                className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent ${
+                  isIdentitasReadOnly ? "bg-gray-100 cursor-not-allowed" : ""
+                }`}
                 required
               />
             </div>
@@ -157,7 +167,10 @@ export default function TanahForm({ initialData = null, mode = "create" }) {
                 name="jumlah_luas"
                 value={formData.jumlah_luas}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                readOnly={isIdentitasReadOnly}
+                className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent ${
+                  isIdentitasReadOnly ? "bg-gray-100 cursor-not-allowed" : ""
+                }`}
                 placeholder="contoh: 120"
                 required
               />
