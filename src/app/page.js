@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Hero from "@/components/Hero";
-import TentangDesa from "@/components/TentangDesa";
+import TentangDesa from "@/components/TentangDesa/TentangDesa";
 import DataSection from "@/components/DataSection";
 import Gallery from "@/components/Gallery";
 

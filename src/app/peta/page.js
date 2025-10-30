@@ -1,12 +1,12 @@
 "use client";
 import dynamic from "next/dynamic";
 import { useState } from "react";
-import FilterPopup from "@/components/FilterPopup";
-import InfoPopup from "@/components/InfoPopup";
+import FilterPopup from "@/components/petainteraktif/FilterPopup";
+import InfoPopup from "@/components/petainteraktif/InfoPopup";
 import { Sliders, Info } from "lucide-react";
 
 // Muat Map secara dinamis agar tidak error di SSR
-const MapComponent = dynamic(() => import("@/components/MapComponent"), {
+const MapComponent = dynamic(() => import("@/components/petainteraktif/MapComponent"), {
   ssr: false,
 });
 
