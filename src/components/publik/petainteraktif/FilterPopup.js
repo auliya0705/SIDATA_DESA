@@ -8,7 +8,9 @@ export default function FilterPopup({
   setFilter,
   setAppliedFilter,
 }) {
-  const [selected, setSelected] = useState({ status: "", bidang: "" });
+  const [selectedGroup, setSelectedGroup] = useState("");   
+  const [selected, setSelected] = useState({ bidang: "" });
+  // const [selected, setSelected] = useState({ status: "", bidang: "" });
 
   const sertif = ["HM", "HGB", "HP", "HGU", "HPL"];
   const nonSertif = ["MA", "VI", "TN"];
@@ -16,6 +18,7 @@ export default function FilterPopup({
   const nonPertanian = ["PRM", "PDJ", "PKO", "IND", "FUM"];
 
   const handleTerapkan = () => {
+    if (!selected.bidang) return;
     setAppliedFilter({
       kategori,
       bidang: selected.bidang,
