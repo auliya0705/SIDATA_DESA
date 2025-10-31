@@ -4,43 +4,68 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Edit, Trash2 } from "lucide-react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 
-export default function DetailWargaPage() {
+// Dynamic import MapView to avoid SSR issues
+const MapView = dynamic(() => import("@/components/admin/MapView"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-96 bg-gray-100 rounded-lg flex items-center justify-center">
+      <p className="text-gray-500">Loading map...</p>
+    </div>
+  ),
+});
+
+export default function DetailTanahPage() {
   const params = useParams();
   const router = useRouter();
-  const [wargaData, setWargaData] = useState(null);
+  const [bidangData, setBidangData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // TODO: Fetch data from API based on params.id
     // Simulate API call
     setTimeout(() => {
-      setWargaData({
+      setBidangData({
         id: params.id,
-        nama_lengkap: "Muhammad Vendra Hastagiyan",
-        jenis_kelamin: "Laki-laki",
-        status_perkawinan: "Menikah",
-        tempat_lahir: "Semarang",
-        tanggal_lahir: "11-02-2005",
-        agama: "Islam",
-        pendidikan_terakhir: "S1",
-        pekerjaan: "Mahasiswa",
-        kewarganegaraan: "WNI",
-        kedudukan_keluarga: "Kepala Keluarga",
-        alamat_lengkap:
-          "Jl. Sains kali ya, RT 04/RW 02, Desa Banyubiru, Kec. Banyubiru, Kab. Semarang",
-        nomor_ktp: "3300000070000000",
-        catatan: "Tidak ada catatan khusus",
+        nama_pemilik: "Muhammad Vendra Hastagiyan",
+        nomor_urut: "001",
+        jumlah_luas: "250",
+        status_hak_tanah: "HM",
+        penggunaan_tanah: ["perumahan", "sawah"],
+        keterangan: "Tanah produktif dengan akses jalan utama",
+        // Sample GeoJSON - Replace with actual data from API
+        geojson: {
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              geometry: {
+                type: "Polygon",
+                coordinates: [
+                  [
+                    [110.4, -7.05],
+                    [110.41, -7.05],
+                    [110.41, -7.06],
+                    [110.4, -7.06],
+                    [110.4, -7.05],
+                  ],
+                ],
+              },
+              properties: {},
+            },
+          ],
+        },
       });
       setLoading(false);
     }, 500);
   }, [params.id]);
 
   const handleDelete = () => {
-    if (confirm("Yakin ingin menghapus data ini?")) {
+    if (confirm("Yakin ingin menghapus data tanah ini?")) {
       // TODO: Implement delete API call
-      alert("Data berhasil dihapus!");
-      router.push("/admin/management-warga");
+      alert("Data tanah berhasil dihapus!");
+      router.push("/admin/management-tanah");
     }
   };
 
@@ -62,15 +87,55 @@ export default function DetailWargaPage() {
     </div>
   );
 
+  // Helper function to format penggunaan tanah labels
+  const formatPenggunaanTanah = (penggunaan) => {
+    const labelMap = {
+      perumahan: "Perumahan",
+      perdagangan_jasa: "Perdagangan & Jasa",
+      perkantoran: "Perkantoran",
+      industri: "Industri",
+      fasilitas_umum: "Fasilitas Umum",
+      sawah: "Sawah",
+      tegalan: "Tegalan",
+      perkebunan: "Perkebunan",
+      peternakan_perikanan: "Peternakan/Perikanan",
+      hutan_belukar: "Hutan Belukar",
+      hutan_lindung: "Hutan Lindung",
+      tanah_kosong: "Tanah Kosong",
+      mutasi_tanah: "Mutasi Tanah di Desa",
+      lain_lain: "Lain-lain",
+    };
+
+    return penggunaan.map((item) => labelMap[item] || item).join(", ");
+  };
+
+  // Helper function to format status hak tanah
+  const formatStatusHak = (status) => {
+    const statusMap = {
+      HM: "Hak Milik (HM)",
+      HGB: "Hak Guna Bangunan (HGB)",
+      HP: "Hak Pakai (HP)",
+      HGU: "Hak Guna Usaha (HGU)",
+      HPL: "Hak Pengelolaan (HPL)",
+      MA: "Milik Adat (MA)",
+      VI: "Verponding Indonesia (VI)",
+      TN: "Tanah Negara (TN)",
+    };
+
+    return statusMap[status] || status;
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Detail Penduduk</h1>
+          <h1 className="text-2xl font-bold text-gray-800">
+            Detail Data Tanah
+          </h1>
         </div>
         <Link
-          href="/admin/management-warga"
+          href="/admin/management-tanah"
           className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
         >
           <ArrowLeft size={18} />
@@ -81,7 +146,7 @@ export default function DetailWargaPage() {
       {/* Action Buttons */}
       <div className="flex gap-3">
         <Link
-          href={`/admin/management-warga/edit/${params.id}`}
+          href={`/admin/management-tanah/edit/${params.id}`}
           className="flex items-center space-x-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 transition-colors"
         >
           <Edit size={18} />
@@ -102,64 +167,62 @@ export default function DetailWargaPage() {
           <h3 className="text-lg font-semibold">Identitas Dasar</h3>
         </div>
         <dl className="px-6">
-          <DetailRow label="Nama Lengkap" value={wargaData.nama_lengkap} />
-          <DetailRow label="Jenis Kelamin" value={wargaData.jenis_kelamin} />
+          <DetailRow label="Nama Pemilik" value={bidangData.nama_pemilik} />
+          <DetailRow label="Nomor Urut" value={bidangData.nomor_urut} />
           <DetailRow
-            label="Status Perkawinan"
-            value={wargaData.status_perkawinan}
-          />
-          <DetailRow
-            label="Tempat, Tanggal Lahir"
-            value={`${wargaData.tempat_lahir}, ${wargaData.tanggal_lahir}`}
+            label="Jumlah Luas"
+            value={`${bidangData.jumlah_luas} m²`}
           />
         </dl>
       </div>
 
-      {/* Detail Card - Agama, Pendidikan, Pekerjaan */}
+      {/* Detail Card - Status & Penggunaan Tanah */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="bg-teal-700 text-white px-6 py-4">
-          <h3 className="text-lg font-semibold">
-            Agama, Pendidikan & Pekerjaan
-          </h3>
-        </div>
-        <dl className="px-6">
-          <DetailRow label="Agama" value={wargaData.agama} />
-          <DetailRow
-            label="Pendidikan Terakhir"
-            value={wargaData.pendidikan_terakhir}
-          />
-          <DetailRow label="Pekerjaan" value={wargaData.pekerjaan} />
-        </dl>
-      </div>
-
-      {/* Detail Card - Kependudukan dan Alamat */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="bg-teal-700 text-white px-6 py-4">
-          <h3 className="text-lg font-semibold">Kependudukan dan Alamat</h3>
+          <h3 className="text-lg font-semibold">Status & Penggunaan Tanah</h3>
         </div>
         <dl className="px-6">
           <DetailRow
-            label="Kewarganegaraan"
-            value={wargaData.kewarganegaraan}
+            label="Status Hak Tanah"
+            value={formatStatusHak(bidangData.status_hak_tanah)}
           />
           <DetailRow
-            label="Kedudukan dalam Keluarga"
-            value={wargaData.kedudukan_keluarga}
+            label="Penggunaan Tanah"
+            value={formatPenggunaanTanah(bidangData.penggunaan_tanah)}
           />
-          <DetailRow label="Nomor KTP (NIK)" value={wargaData.nomor_ktp} />
-          <DetailRow label="Alamat Lengkap" value={wargaData.alamat_lengkap} />
         </dl>
       </div>
 
-      {/* Detail Card - Catatan */}
-      {wargaData.catatan && (
+      {/* Map Section - Only show if geojson exists */}
+      {bidangData.geojson && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="bg-teal-700 text-white px-6 py-4">
-            <h3 className="text-lg font-semibold">Catatan</h3>
+            <h3 className="text-lg font-semibold">Lokasi Tanah</h3>
+          </div>
+          <div className="p-6">
+            <MapView
+              geoJson={bidangData.geojson}
+              properties={{
+                nama: bidangData.nama_pemilik,
+                luas_m2: bidangData.jumlah_luas,
+                status_hak: formatStatusHak(bidangData.status_hak_tanah),
+                penggunaan: formatPenggunaanTanah(bidangData.penggunaan_tanah),
+              }}
+              height="400px"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Detail Card - Keterangan */}
+      {bidangData.keterangan && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="bg-teal-700 text-white px-6 py-4">
+            <h3 className="text-lg font-semibold">Keterangan</h3>
           </div>
           <div className="px-6 py-4">
             <p className="text-gray-900 whitespace-pre-wrap">
-              {wargaData.catatan}
+              {bidangData.keterangan}
             </p>
           </div>
         </div>

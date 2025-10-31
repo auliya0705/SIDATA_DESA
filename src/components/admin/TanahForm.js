@@ -2,6 +2,17 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
+
+// Dynamic import to avoid SSR issues
+const MapInput = dynamic(() => import("@/components/admin/MapInput"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-96 bg-gray-100 rounded-lg flex items-center justify-center">
+      <p className="text-gray-500">Loading map...</p>
+    </div>
+  ),
+});
 
 export default function TanahForm({
   initialData = null,
@@ -17,6 +28,7 @@ export default function TanahForm({
     status_hak_tanah: "",
     penggunaan_tanah: [],
     keterangan: "",
+    geojson: null, // ← NEW: Store GeoJSON
   };
 
   const [formData, setFormData] = useState({
@@ -24,6 +36,7 @@ export default function TanahForm({
     ...initialData,
     // Pastikan penggunaan_tanah selalu array
     penggunaan_tanah: initialData?.penggunaan_tanah || [],
+    geojson: initialData?.geojson || null,
   });
 
   const statusHakOptions = [
@@ -83,6 +96,14 @@ export default function TanahForm({
     });
   };
 
+  // ← NEW: Handle map save
+  const handleMapSave = (geoJson) => {
+    setFormData((prev) => ({
+      ...prev,
+      geojson: geoJson,
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -95,6 +116,17 @@ export default function TanahForm({
     if (formData.penggunaan_tanah.length === 0) {
       alert("Pilih minimal 1 Penggunaan Tanah!");
       return;
+    }
+
+    // ← NEW: Optional validation for coordinates
+    if (!formData.geojson) {
+      if (
+        !confirm(
+          "Lokasi tanah belum ditandai di peta. Lanjutkan tanpa koordinat?"
+        )
+      ) {
+        return;
+      }
     }
 
     // TODO: Implement API call
@@ -111,6 +143,11 @@ export default function TanahForm({
   const handleCancel = () => {
     router.push("/admin/management-tanah");
   };
+
+  // ← NEW: Extract initial coordinates for map (if editing)
+  const initialCoordinates = initialData?.geojson?.coordinates?.[0]
+    ? initialData.geojson.coordinates[0].map(([lng, lat]) => [lat, lng])
+    : null;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -179,6 +216,28 @@ export default function TanahForm({
         </div>
       </div>
 
+      {/* ← NEW: Section 4: Lokasi Tanah (Map) */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold text-teal-700 mb-4 border-b border-teal-200 pb-2">
+          Lokasi Tanah (Peta)
+        </h3>
+
+        <MapInput
+          initialCoordinates={initialCoordinates}
+          onSave={handleMapSave}
+          height="500px"
+        />
+
+        {/* Hidden input to store GeoJSON */}
+        {formData.geojson && (
+          <input
+            type="hidden"
+            name="geojson"
+            value={JSON.stringify(formData.geojson)}
+          />
+        )}
+      </div>
+
       {/* Section 2: Status Hak Tanah */}
       <div className="bg-white rounded-lg shadow p-6">
         <h3 className="text-lg font-semibold text-teal-700 mb-4 border-b border-teal-200 pb-2">
@@ -232,10 +291,10 @@ export default function TanahForm({
         </div>
       </div>
 
-      {/* Section 4: Keterangan */}
+      {/* Section 5: Keterangan */}
       <div className="bg-white rounded-lg shadow p-6">
         <h3 className="text-lg font-semibold text-teal-700 mb-4 border-b border-teal-200 pb-2">
-          Keterangan:
+          Keterangan
         </h3>
 
         <div>

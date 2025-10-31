@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Poppins } from "next/font/google";
 import Sidebar from "@/components/admin/Sidebar";
 import Topbar from "@/components/admin/Topbar";
+import "leaflet/dist/leaflet.css";
 
 const poppins = Poppins({
   subsets: ["latin"],
