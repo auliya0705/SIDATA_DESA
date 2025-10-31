@@ -216,7 +216,7 @@ export default function TanahForm({
         </div>
       </div>
 
-      {/* ← NEW: Section 4: Lokasi Tanah (Map) */}
+      {/* ← NEW: Section 4: Lokasi Tanah (Map) (aku ubah ke section 2) */}
       <div className="bg-white rounded-lg shadow p-6">
         <h3 className="text-lg font-semibold text-teal-700 mb-4 border-b border-teal-200 pb-2">
           Lokasi Tanah (Peta)
