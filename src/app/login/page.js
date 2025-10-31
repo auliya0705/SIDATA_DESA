@@ -5,6 +5,30 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Eye, EyeOff, LogIn, Lock, Mail } from "lucide-react";
 
+// Mock user database
+const MOCK_USERS = {
+  "admin@kepdes.com": {
+    email: "admin@kepdes.com",
+    password: "12345678",
+    user: {
+      id: 1,
+      name: "Vendra",
+      email: "admin@kepdes.com",
+      role: "kepala_desa",
+    },
+  },
+  "admin1@staff.com": {
+    email: "admin1@staff.com",
+    password: "12345678",
+    user: {
+      id: 2,
+      name: "Staff Admin",
+      email: "admin1@staff.com",
+      role: "staff",
+    },
+  },
+};
+
 export default function LoginPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
@@ -56,53 +80,35 @@ export default function LoginPage() {
 
     setLoading(true);
 
-    // TODO: Implement API call to Laravel backend
-    // Example:
-    // try {
-    //   const response = await fetch('http://your-laravel-api.com/api/login', {
-    //     method: 'POST',
-    //     headers: { 'Content-Type': 'application/json' },
-    //     body: JSON.stringify({
-    //       email: formData.email,
-    //       password: formData.password,
-    //     }),
-    //   });
-    //   const data = await response.json();
-    //   if (data.success) {
-    //     localStorage.setItem('token', data.token);
-    //     localStorage.setItem('user', JSON.stringify(data.user));
-    //     router.push('/admin/dashboard');
-    //   } else {
-    //     setErrors({ general: data.message });
-    //   }
-    // } catch (error) {
-    //   setErrors({ general: 'Terjadi kesalahan. Silakan coba lagi.' });
-    // } finally {
-    //   setLoading(false);
-    // }
-
-    // Simulate API call
+    // Simulate API delay
     setTimeout(() => {
-      // Mock successful login
-      console.log("Login data:", formData);
+      // Check credentials from mock database
+      const mockAccount = MOCK_USERS[formData.email];
 
-      // Mock user data
-      const mockUser = {
-        id: 1,
-        name: "Vendra",
-        email: formData.email,
-        role: "kepala_desa", // or "sekretaris_desa"
-      };
+      if (!mockAccount) {
+        setErrors({ general: "Email tidak terdaftar" });
+        setLoading(false);
+        return;
+      }
 
-      // Store in localStorage (temporary - should use proper state management)
+      if (mockAccount.password !== formData.password) {
+        setErrors({ general: "Password salah" });
+        setLoading(false);
+        return;
+      }
+
+      // Successful login
+      console.log("Login berhasil:", mockAccount.user);
+
+      // Store in localStorage
       if (typeof window !== "undefined") {
         localStorage.setItem("token", "mock-jwt-token");
-        localStorage.setItem("user", JSON.stringify(mockUser));
+        localStorage.setItem("user", JSON.stringify(mockAccount.user));
       }
 
       setLoading(false);
       router.push("/admin/dashboard");
-    }, 1500);
+    }, 1000);
   };
 
   return (
@@ -187,7 +193,7 @@ export default function LoginPage() {
                       transition-all
                       ${errors.email ? "border-red-500" : "border-gray-300"}
                     `}
-                    placeholder="admin@desa.com"
+                    placeholder="admin@kepdes.com"
                   />
                 </div>
                 {errors.email && (
@@ -282,8 +288,23 @@ export default function LoginPage() {
               </button>
             </form>
 
+            {/* Demo Accounts Info */}
+            <div className="mt-6 p-4 bg-teal-50 border border-teal-200 rounded-lg">
+              <p className="text-xs font-semibold text-teal-800 mb-2">
+                📌 Akun Demo:
+              </p>
+              <div className="space-y-1 text-xs text-teal-700">
+                <p>
+                  <strong>Kepala Desa:</strong> admin@kepdes.com / 12345678
+                </p>
+                <p>
+                  <strong>Staff:</strong> admin1@staff.com / 12345678
+                </p>
+              </div>
+            </div>
+
             {/* Info */}
-            <div className="mt-6 text-center text-xs text-gray-500">
+            <div className="mt-4 text-center text-xs text-gray-500">
               <p>Untuk mendapatkan akses, hubungi administrator desa</p>
             </div>
           </div>

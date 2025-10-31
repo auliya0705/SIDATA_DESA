@@ -1,4 +1,4 @@
-// lib/auth.js or utils/auth.js
+// lib/auth.js
 
 /**
  * Get current user from localStorage
@@ -49,6 +49,13 @@ export const hasRole = (role) => {
  */
 export const isKepalaDesa = () => {
   return hasRole("kepala_desa");
+};
+
+/**
+ * Check if user is Staff (no approval rights)
+ */
+export const isStaff = () => {
+  return hasRole("staff");
 };
 
 /**
@@ -110,11 +117,29 @@ export const getUserDisplayInfo = () => {
   const user = getCurrentUser();
   if (!user) return null;
 
+  const roleDisplayMap = {
+    kepala_desa: "Kepala Desa",
+    staff: "Staff",
+    sekretaris_desa: "Sekretaris Desa", // Legacy support
+  };
+
   return {
     name: user.name,
     email: user.email,
     role: user.role,
-    roleDisplay:
-      user.role === "kepala_desa" ? "Kepala Desa" : "Sekretaris Desa",
+    roleDisplay: roleDisplayMap[user.role] || "Admin",
   };
+};
+
+/**
+ * Get role display name
+ */
+export const getRoleDisplay = (role) => {
+  const roleDisplayMap = {
+    kepala_desa: "Kepala Desa",
+    staff: "Staff",
+    sekretaris_desa: "Sekretaris Desa",
+  };
+
+  return roleDisplayMap[role] || "Admin";
 };
