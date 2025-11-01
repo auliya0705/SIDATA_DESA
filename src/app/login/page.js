@@ -79,36 +79,60 @@ export default function LoginPage() {
     }
 
     setLoading(true);
+    setErrors({});
 
-    // Simulate API delay
-    setTimeout(() => {
-      // Check credentials from mock database
-      const mockAccount = MOCK_USERS[formData.email];
+    try {
+      //Call APi ori
+      const response = await fetch("http://127.0.0.1:8000/api/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+        }),
+      });
 
-      if (!mockAccount) {
-        setErrors({ general: "Email tidak terdaftar" });
+      const result = await response.json();
+
+      //Handle error response
+      if (!response.ok) {
+        setErrors({
+          general:
+            result.message || "Login gagal. Periksa email dan password Anda.",
+        });
         setLoading(false);
         return;
       }
 
-      if (mockAccount.password !== formData.password) {
-        setErrors({ general: "Password salah" });
-        setLoading(false);
-        return;
+      //Success - save to localStorage
+      if (result.status === "success" && result.data) {
+        localStorage.setItem("token", result.data.token);
+        localStorage.setItem("user", JSON.stringify(result.data.user));
+
+        console.log("✅ Login berhasil:", result.data.user);
+
+        //Redirect based on role
+        if (
+          result.data.user.role === "kepala_desa" ||
+          result.data.user.role === "kepala"
+        ) {
+          router.push("/admin/dashboard"); // Kepala Desa - ada approval
+        } else {
+          router.push("/admin/management-tanah"); // Staff - langsung ke CRUD
+        }
+      } else {
+        setErrors({ general: "Format response tidak valid" });
       }
-
-      // Successful login
-      console.log("Login berhasil:", mockAccount.user);
-
-      // Store in localStorage
-      if (typeof window !== "undefined") {
-        localStorage.setItem("token", "mock-jwt-token");
-        localStorage.setItem("user", JSON.stringify(mockAccount.user));
-      }
-
+    } catch (error) {
+      console.error("❌ Login error:", error);
+      setErrors({
+        general: "Tidak dapat terhubung ke server. Pastikan backend berjalan.",
+      });
+    } finally {
       setLoading(false);
-      router.push("/admin/dashboard");
-    }, 1000);
+    }
   };
 
   return (

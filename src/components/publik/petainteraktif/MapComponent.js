@@ -394,10 +394,10 @@ export default function MapComponent({ filter }) {
     <MapContainer
       center={defaultCenter}
       zoom={15}
-      //scrollWheelZoom={true} //Enable scroll zoom
-      //zoomControl={true} //Show zoom buttons
-      //minZoom={14} //Min zoom level
-      //maxZoom={20} //Max zoom level
+      scrollWheelZoom={true} //Enable scroll zoom
+      zoomControl={true} //Show zoom buttons
+      minZoom={14} //Min zoom level
+      maxZoom={20} //Max zoom level
       style={{ height: "100vh", width: "100%" }}
       className="z-0"
     >

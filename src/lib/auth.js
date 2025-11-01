@@ -48,7 +48,11 @@ export const hasRole = (role) => {
  * Check if user is Kepala Desa (has approval rights)
  */
 export const isKepalaDesa = () => {
-  return hasRole("kepala_desa");
+  const user = getCurrentUser();
+  if (!user) return false;
+
+  // support both "kepala_desa" and "kepala" hehe
+  return user.role === "kepala_desa" || user.role === "kepala";
 };
 
 /**

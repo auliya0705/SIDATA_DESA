@@ -11,7 +11,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import ApprovalTable from "@/components/admin/ApprovalTable";
-import { isKepalaDesa } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
 
 export default function ApprovalPage() {
   const router = useRouter();
@@ -25,7 +25,9 @@ export default function ApprovalPage() {
 
   // Check if user is Kepala Desa
   useEffect(() => {
-    if (!isKepalaDesa()) {
+    const user = getCurrentUser();
+    //
+    if (!user || (user.role !== "kepala_desa" && user.role !== "kepala")) {
       alert("Halaman ini hanya untuk Kepala Desa");
       router.push("/admin/dashboard");
     }
@@ -116,7 +118,8 @@ export default function ApprovalPage() {
   };
 
   // Prevent access if not Kepala Desa
-  if (!isKepalaDesa()) {
+  const user = getCurrentUser();
+  if (!user || (user.role !== "kepala_desa" && user.role !== "kepala")) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">

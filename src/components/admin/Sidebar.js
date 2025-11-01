@@ -48,7 +48,8 @@ export default function Sidebar() {
       const userStr = localStorage.getItem("user");
       if (userStr) {
         const user = JSON.parse(userStr);
-        setIsKepalaDesa(user.role === "kepala_desa");
+        //Support both "kepala_desa" and "kepala"
+        setIsKepalaDesa(user.role === "kepala_desa" || user.role === "kepala");
       }
     }
   }, []);
