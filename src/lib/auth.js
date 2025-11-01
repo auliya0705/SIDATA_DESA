@@ -1,5 +1,3 @@
-// lib/auth.js
-
 /**
  * Get current user from localStorage
  */

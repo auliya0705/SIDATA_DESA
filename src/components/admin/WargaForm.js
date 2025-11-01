@@ -2,25 +2,37 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Upload, X, Image as ImageIcon } from "lucide-react";
 
-export default function WargaForm({ initialData = null, mode = "create" }) {
+export default function WargaForm({
+  initialData = null,
+  mode = "create",
+  onSubmit,
+  loading = false,
+}) {
   const router = useRouter();
   const [formData, setFormData] = useState(
     initialData || {
       nama_lengkap: "",
       jenis_kelamin: "",
-      status_perkawinan: "",
+      nik: "",
       tempat_lahir: "",
       tanggal_lahir: "",
       agama: "",
+      status_perkawinan: "",
       pendidikan_terakhir: "",
       pekerjaan: "",
-      kewarganegaraan: "",
-      kedudukan_keluarga: "",
+      kewarganegaraan: "WNI",
       alamat_lengkap: "",
-      nomor_ktp: "",
-      catatan: "",
+      keterangan: "",
+      foto_ktp: null,
     }
+  );
+
+  const [previewImage, setPreviewImage] = useState(
+    initialData?.foto_ktp_existing
+      ? `http://127.0.0.1:8000/storage/${initialData.foto_ktp_existing}`
+      : null
   );
 
   const handleChange = (e) => {
@@ -31,21 +43,60 @@ export default function WargaForm({ initialData = null, mode = "create" }) {
     }));
   };
 
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith("image/")) {
+        alert("File harus berupa gambar!");
+        return;
+      }
+
+      // Validate file size (max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        alert("Ukuran file maksimal 2MB!");
+        return;
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        foto_ktp: file,
+      }));
+
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviewImage(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setFormData((prev) => ({
+      ...prev,
+      foto_ktp: null,
+    }));
+    setPreviewImage(
+      initialData?.foto_ktp_existing
+        ? `http://127.0.0.1:8000/storage/${initialData.foto_ktp_existing}`
+        : null
+    );
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // TODO: Implement API call
-    console.log("Form Data:", formData);
+    // Validation
+    if (formData.nik.length !== 16) {
+      alert("NIK harus 16 digit!");
+      return;
+    }
 
-    // Simulate API call
-    alert(
-      mode === "create"
-        ? "Data berhasil ditambahkan!"
-        : "Data berhasil diupdate!"
-    );
-
-    // Redirect back to list
-    router.push("/admin/management-warga");
+    // Call parent's onSubmit
+    if (onSubmit) {
+      await onSubmit(formData);
+    }
   };
 
   const handleCancel = () => {
@@ -64,7 +115,7 @@ export default function WargaForm({ initialData = null, mode = "create" }) {
           {/* Nama Lengkap */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Nama Lengkap
+              Nama Lengkap <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -76,11 +127,32 @@ export default function WargaForm({ initialData = null, mode = "create" }) {
             />
           </div>
 
+          {/* NIK */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              NIK (16 digit) <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              name="nik"
+              value={formData.nik}
+              onChange={handleChange}
+              maxLength={16}
+              pattern="[0-9]{16}"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent font-mono"
+              placeholder="3201123456781221"
+              required
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Masukkan 16 digit angka NIK sesuai KTP
+            </p>
+          </div>
+
           {/* Jenis Kelamin & Status Perkawinan */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Jenis Kelamin
+                Jenis Kelamin <span className="text-red-500">*</span>
               </label>
               <select
                 name="jenis_kelamin"
@@ -89,15 +161,15 @@ export default function WargaForm({ initialData = null, mode = "create" }) {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                 required
               >
-                <option value="">-- pilih --</option>
-                <option value="Laki-laki">Laki-laki</option>
-                <option value="Perempuan">Perempuan</option>
+                <option value="">-- Pilih --</option>
+                <option value="L">Laki-laki</option>
+                <option value="P">Perempuan</option>
               </select>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Status Perkawinan
+                Status Perkawinan <span className="text-red-500">*</span>
               </label>
               <select
                 name="status_perkawinan"
@@ -106,11 +178,11 @@ export default function WargaForm({ initialData = null, mode = "create" }) {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                 required
               >
-                <option value="">-- pilih --</option>
-                <option value="Belum Menikah">Belum Menikah</option>
-                <option value="Menikah">Menikah</option>
-                <option value="Cerai Hidup">Cerai Hidup</option>
-                <option value="Cerai Mati">Cerai Mati</option>
+                <option value="">-- Pilih --</option>
+                <option value="BELUM_KAWIN">Belum Kawin</option>
+                <option value="KAWIN">Kawin</option>
+                <option value="CERAI_HIDUP">Cerai Hidup</option>
+                <option value="CERAI_MATI">Cerai Mati</option>
               </select>
             </div>
           </div>
@@ -119,7 +191,7 @@ export default function WargaForm({ initialData = null, mode = "create" }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tempat Lahir
+                Tempat Lahir <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -127,13 +199,14 @@ export default function WargaForm({ initialData = null, mode = "create" }) {
                 value={formData.tempat_lahir}
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                placeholder="Contoh: Semarang"
                 required
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tanggal Lahir
+                Tanggal Lahir <span className="text-red-500">*</span>
               </label>
               <input
                 type="date"
@@ -145,20 +218,11 @@ export default function WargaForm({ initialData = null, mode = "create" }) {
               />
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Section 2: Agama • Pendidikan • Pekerjaan */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold text-teal-700 mb-4 border-b border-teal-200 pb-2">
-          Agama • Pendidikan • Pekerjaan
-        </h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Agama */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Agama
+              Agama <span className="text-red-500">*</span>
             </label>
             <select
               name="agama"
@@ -167,7 +231,7 @@ export default function WargaForm({ initialData = null, mode = "create" }) {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
               required
             >
-              <option value="">-- pilih --</option>
+              <option value="">-- Pilih --</option>
               <option value="Islam">Islam</option>
               <option value="Kristen">Kristen</option>
               <option value="Katolik">Katolik</option>
@@ -176,7 +240,16 @@ export default function WargaForm({ initialData = null, mode = "create" }) {
               <option value="Konghucu">Konghucu</option>
             </select>
           </div>
+        </div>
+      </div>
 
+      {/* Section 2: Pendidikan & Pekerjaan */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold text-teal-700 mb-4 border-b border-teal-200 pb-2">
+          Pendidikan & Pekerjaan
+        </h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Pendidikan Terakhir */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -187,13 +260,13 @@ export default function WargaForm({ initialData = null, mode = "create" }) {
               value={formData.pendidikan_terakhir}
               onChange={handleChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              required
             >
-              <option value="">-- pilih --</option>
+              <option value="">-- Pilih --</option>
               <option value="Tidak/Belum Sekolah">Tidak/Belum Sekolah</option>
               <option value="SD">SD</option>
               <option value="SMP">SMP</option>
-              <option value="SMA/SMK">SMA/SMK</option>
+              <option value="SMA">SMA</option>
+              <option value="SMK">SMK</option>
               <option value="D3">D3</option>
               <option value="S1">S1</option>
               <option value="S2">S2</option>
@@ -212,58 +285,34 @@ export default function WargaForm({ initialData = null, mode = "create" }) {
               value={formData.pekerjaan}
               onChange={handleChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              placeholder="contoh: PNS, Guru, Petani"
-              required
+              placeholder="Contoh: PNS, Petani, Wiraswasta"
             />
           </div>
         </div>
       </div>
 
-      {/* Section 3: Kependudukan dan Alamat */}
+      {/* Section 3: Alamat & Kewarganegaraan */}
       <div className="bg-white rounded-lg shadow p-6">
         <h3 className="text-lg font-semibold text-teal-700 mb-4 border-b border-teal-200 pb-2">
-          Kependudukan dan Alamat
+          Alamat & Kewarganegaraan
         </h3>
 
         <div className="space-y-4">
-          {/* Kewarganegaraan & Kedudukan dalam Keluarga */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Kewarganegaraan
-              </label>
-              <select
-                name="kewarganegaraan"
-                value={formData.kewarganegaraan}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                required
-              >
-                <option value="">-- pilih --</option>
-                <option value="WNI">WNI</option>
-                <option value="WNA">WNA</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Kedudukan dalam Keluarga
-              </label>
-              <select
-                name="kedudukan_keluarga"
-                value={formData.kedudukan_keluarga}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                required
-              >
-                <option value="">-- pilih --</option>
-                <option value="Kepala Keluarga">Kepala Keluarga</option>
-                <option value="Istri">Istri</option>
-                <option value="Anak">Anak</option>
-                <option value="Orang Tua">Orang Tua</option>
-                <option value="Lainnya">Lainnya</option>
-              </select>
-            </div>
+          {/* Kewarganegaraan */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Kewarganegaraan <span className="text-red-500">*</span>
+            </label>
+            <select
+              name="kewarganegaraan"
+              value={formData.kewarganegaraan}
+              onChange={handleChange}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              required
+            >
+              <option value="WNI">WNI (Warga Negara Indonesia)</option>
+              <option value="WNA">WNA (Warga Negara Asing)</option>
+            </select>
           </div>
 
           {/* Alamat Lengkap */}
@@ -277,47 +326,90 @@ export default function WargaForm({ initialData = null, mode = "create" }) {
               onChange={handleChange}
               rows={3}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              placeholder="Dusun/RT/RW, Desa, Kec., Kab/Kota"
-              required
-            />
-          </div>
-
-          {/* Nomor KTP (NIK) */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Nomor KTP (NIK)
-            </label>
-            <input
-              type="text"
-              name="nomor_ktp"
-              value={formData.nomor_ktp}
-              onChange={handleChange}
-              maxLength={16}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent font-mono"
-              placeholder="16 digit"
-              required
+              placeholder="Dusun/RT/RW, Desa, Kecamatan, Kabupaten"
             />
           </div>
         </div>
       </div>
 
-      {/* Section 4: Catatan Lain */}
+      {/* Section 4: Foto KTP */}
       <div className="bg-white rounded-lg shadow p-6">
         <h3 className="text-lg font-semibold text-teal-700 mb-4 border-b border-teal-200 pb-2">
-          Catatan Lain
+          Foto KTP (Opsional)
+        </h3>
+
+        <div className="space-y-4">
+          {/* Preview Image */}
+          {previewImage && (
+            <div className="relative w-full max-w-md">
+              <img
+                src={previewImage}
+                alt="Preview KTP"
+                className="w-full h-auto rounded-lg border-2 border-gray-200"
+              />
+              <button
+                type="button"
+                onClick={handleRemoveImage}
+                className="absolute top-2 right-2 p-1 bg-red-600 text-white rounded-full hover:bg-red-700"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
+
+          {/* Upload Button */}
+          <div>
+            <label className="block">
+              <div className="flex items-center justify-center w-full max-w-md px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-teal-500 hover:bg-teal-50 transition-colors">
+                <div className="flex flex-col items-center space-y-2 text-center">
+                  {previewImage ? (
+                    <>
+                      <ImageIcon className="text-teal-600" size={24} />
+                      <span className="text-sm text-gray-600">
+                        Klik untuk ganti foto
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="text-gray-400" size={24} />
+                      <span className="text-sm text-gray-600">
+                        Upload foto KTP (maks. 2MB)
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        JPG, PNG, WebP
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {/* Section 5: Keterangan */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold text-teal-700 mb-4 border-b border-teal-200 pb-2">
+          Keterangan Tambahan
         </h3>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Catatan lain (opsional)
+            Keterangan (opsional)
           </label>
           <textarea
-            name="catatan"
-            value={formData.catatan}
+            name="keterangan"
+            value={formData.keterangan}
             onChange={handleChange}
             rows={4}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-            placeholder="Tambahkan catatan jika diperlukan..."
+            placeholder="Tambahkan keterangan jika diperlukan..."
           />
         </div>
       </div>
@@ -327,16 +419,34 @@ export default function WargaForm({ initialData = null, mode = "create" }) {
         <button
           type="button"
           onClick={handleCancel}
-          className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+          disabled={loading}
+          className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
         >
           Kembali
         </button>
         <button
           type="submit"
-          className="px-6 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 transition-colors"
+          disabled={loading}
+          className="px-6 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 transition-colors disabled:opacity-50 flex items-center space-x-2"
         >
-          Simpan
+          {loading ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              <span>Menyimpan...</span>
+            </>
+          ) : (
+            <span>Simpan Proposal</span>
+          )}
         </button>
+      </div>
+
+      {/* Info */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <p className="text-sm text-blue-800">
+          <strong>ℹ️ Catatan:</strong> Data yang Anda submit akan menjadi
+          proposal yang perlu disetujui oleh Kepala Desa terlebih dahulu sebelum
+          masuk ke sistem.
+        </p>
       </div>
     </form>
   );
