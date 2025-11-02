@@ -1,3 +1,4 @@
+// src/components/admin/ApprovalTable.js
 "use client";
 
 import { useMemo } from "react";
@@ -18,7 +19,6 @@ function extractNamaNik(row) {
   const after = payload?.after ?? null;
   const before = payload?.before ?? null;
 
-  // pakai nilai yang mungkin sudah dinormalisasi di page.js terlebih dulu
   const nik =
     row.display_nik ??
     row.nik ??
@@ -40,6 +40,35 @@ function extractNamaNik(row) {
   return { nik, nama };
 }
 
+function normalizeRowStatus(row) {
+  const raw =
+    row?.status ??
+    row?.status_approval ??
+    row?.approval_status ??
+    row?.state ??
+    row?.current_status ??
+    null;
+  if (!raw) return "PENDING";
+  const up = String(raw).trim().toUpperCase();
+  if (["APPROVED", "DISETUJUI"].includes(up)) return "APPROVED";
+  if (["REJECTED", "DITOLAK"].includes(up)) return "REJECTED";
+  if (["PENDING", "MENUNGGU", "DRAFT"].includes(up)) return "PENDING";
+  return up;
+}
+
+function getApprovalId(row) {
+  return (
+    row?.approval_id ??
+    row?.request_id ??
+    row?.proposal_id ??
+    row?.id // ← respons list kamu pakai ini
+  );
+}
+
+function getSubmittedAt(row) {
+  return row?.created_at ?? row?.submitted_at ?? row?.updated_at ?? null;
+}
+
 export default function ApprovalTable({
   data = [],
   onApprove,
@@ -50,9 +79,7 @@ export default function ApprovalTable({
 }) {
   const rows = useMemo(() => data || [], [data]);
 
-  if (!rows.length) {
-    return null;
-  }
+  if (!rows.length) return null;
 
   return (
     <div className="overflow-x-auto bg-white rounded-lg shadow-sm border border-gray-200">
@@ -74,12 +101,18 @@ export default function ApprovalTable({
         <tbody className="bg-white divide-y divide-gray-200">
           {rows.map((row, idx) => {
             const { nik, nama } = extractNamaNik(row);
+            const status = normalizeRowStatus(row);
+            const isPending = status === "PENDING";
+            const approvalId = getApprovalId(row);
+            const submittedAt = getSubmittedAt(row);
 
             return (
-              <tr key={row.id} className="hover:bg-gray-50 transition-colors">
+              <tr key={`${approvalId}-${idx}`} className="hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3 text-sm text-gray-700">{idx + 1}</td>
 
-                <td className="px-4 py-3 text-sm text-teal-700 font-medium">#{row.id}</td>
+                <td className="px-4 py-3 text-sm text-teal-700 font-medium">
+                  #{approvalId ?? "?"}
+                </td>
 
                 <td className="px-4 py-3 text-sm text-gray-700">
                   {getModuleName(row.module)}
@@ -98,66 +131,82 @@ export default function ApprovalTable({
                 </td>
 
                 <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
-                  {new Date(row.created_at).toLocaleString("id-ID")}
+                  {submittedAt ? new Date(submittedAt).toLocaleString("id-ID") : "-"}
                 </td>
 
                 <td className="px-4 py-3 text-sm">
                   <span
                     className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
-                      row.status === "pending"
+                      status === "PENDING"
                         ? "bg-yellow-100 text-yellow-800"
-                        : row.status === "approved"
+                        : status === "APPROVED"
                         ? "bg-green-100 text-green-800"
                         : "bg-red-100 text-red-800"
                     }`}
                   >
-                    {row.status === "pending"
+                    {status === "PENDING"
                       ? "Pending"
-                      : row.status === "approved"
+                      : status === "APPROVED"
                       ? "Approved"
                       : "Ditolak"}
                   </span>
+                    {row.apply_error && (
+                  <button
+                       onClick={() => alert(`Alasan gagal apply:\n\n${typeof row.apply_error === "string" ? row.apply_error : JSON.stringify(row.apply_error, null, 2)}`)}
+                       className="ml-2 text-xs underline text-red-700"
+                       title="Lihat alasan gagal apply dari backend"
+                     >
+                      detail error
+                     </button>
+                   )}
                 </td>
 
                 <td className="px-4 py-3 text-sm">
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => onViewDetail && onViewDetail(row)}
+                      onClick={() =>
+                        onViewDetail && onViewDetail({ ...row, approval_id: approvalId })
+                      }
                       className="px-2 py-1 border rounded hover:bg-gray-50"
                       title="Detail"
                     >
                       <Eye size={16} />
                     </button>
-                    {row.status === "pending" && (
-                      <>
-                        <button
-                          onClick={() => onApprove && onApprove(row.id)}
-                          className="px-2 py-1 border rounded text-green-700 hover:bg-green-50"
-                          title="Approve"
-                        >
-                          <Check size={16} />
-                        </button>
-                        <button
-                          onClick={() => onReject && onReject(row.id)}
-                          className="px-2 py-1 border rounded text-red-700 hover:bg-red-50"
-                          title="Tolak"
-                        >
-                          <X size={16} />
-                        </button>
-                      </>
-                    )}
+
+                    <button
+                      onClick={() => isPending && onApprove && onApprove({ ...row, approval_id: approvalId })}
+                      className={`px-2 py-1 border rounded text-green-700 ${
+                        isPending ? "hover:bg-green-50" : "opacity-50 cursor-not-allowed"
+                      }`}
+                      title={isPending ? "Approve" : "Hanya bisa approve saat status Pending"}
+                      disabled={!isPending || !approvalId}
+                    >
+                      <Check size={16} />
+                    </button>
+
+                    <button
+                      onClick={() => isPending && onReject && onReject({ ...row, approval_id: approvalId })}
+                      className={`px-2 py-1 border rounded text-red-700 ${
+                        isPending ? "hover:bg-red-50" : "opacity-50 cursor-not-allowed"
+                      }`}
+                      title={isPending ? "Tolak" : "Hanya bisa menolak saat status Pending"}
+                      disabled={!isPending || !approvalId}
+                    >
+                      <X size={16} />
+                    </button>
                   </div>
+
+                  {!approvalId && (
+                    <div className="mt-2 text-[11px] text-amber-700">
+                      ⚠️ Tidak menemukan approval_id pada baris ini — tombol dinonaktifkan.
+                    </div>
+                  )}
                 </td>
               </tr>
             );
           })}
         </tbody>
       </table>
-
-      {/* Debug minimal: tampilkan payload item pertama (opsional, bisa hapus) */}
-      {/* <pre className="p-3 text-xs bg-gray-50 border-t overflow-auto">
-        {JSON.stringify(rows[0], null, 2)}
-      </pre> */}
     </div>
   );
 }

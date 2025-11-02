@@ -1,123 +1,126 @@
+// src/hooks/useProposal.js
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { apiGet, apiPost } from "@/lib/api";
 import { API_ENDPOINTS } from "@/lib/config";
 
-/**
- * Custom hook for Proposal/Approval operations (Kepala Desa only)
- */
+/** Normalisasi status agar konsisten di UI (opsional) */
+export function normalizeStatus(s) {
+  if (!s) return "PENDING";
+  const up = String(s).trim().toUpperCase();
+  if (["APPROVED", "DISETUJUI"].includes(up)) return "DISETUJUI";
+  if (["REJECTED", "DITOLAK"].includes(up)) return "DITOLAK";
+  if (["PENDING", "MENUNGGU", "DRAFT"].includes(up)) return "PENDING";
+  return up;
+}
+
+// Helper id (boleh kirim row atau id)
+function getProposalId(rowOrId) {
+  if (rowOrId == null) return null;
+  if (typeof rowOrId === "number" || typeof rowOrId === "string") return rowOrId;
+  return rowOrId.approval_id ?? rowOrId.id ?? rowOrId.target_id ?? null;
+}
+
 export function useProposal() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  /**
-   * Get all proposals/approvals
-   */
-  const getProposalList = async (params = {}) => {
+  const getProposalList = useCallback(async (params = {}) => {
     setLoading(true);
     setError(null);
-
     try {
-      const queryString = new URLSearchParams(params).toString();
-      const endpoint = queryString
-        ? `${API_ENDPOINTS.PROPOSAL.LIST}?${queryString}`
+      const qs = new URLSearchParams(params).toString();
+      const endpoint = qs
+        ? `${API_ENDPOINTS.PROPOSAL.LIST}?${qs}`
         : API_ENDPOINTS.PROPOSAL.LIST;
-
-      console.log("🔍 Fetching approvals from:", endpoint);
-
-      const data = await apiGet(endpoint);
-
-      console.log("✅ Approvals fetched successfully:", {
-        data_length: data.data?.length || 0,
-        total: data.total,
-        current_page: data.current_page,
-      });
-
-      return data;
+      return await apiGet(endpoint);
     } catch (err) {
-      console.error("❌ Error fetching approvals:", err.message);
-      setError(err.message);
+      setError(err.message || "Gagal memuat daftar proposal");
       throw err;
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  /**
-   * Get single proposal by ID
-   */
-  const getProposalById = async (id) => {
+  const getProposalById = useCallback(async (id) => {
     setLoading(true);
     setError(null);
-
     try {
-      const endpoint = API_ENDPOINTS.PROPOSAL.SHOW(id);
-      console.log("🔍 Fetching approval by ID:", endpoint);
-
-      const data = await apiGet(endpoint);
-      return data;
+      // panggil SHOW kalau ada di backend
+      return await apiGet(API_ENDPOINTS.PROPOSAL.SHOW(id));
     } catch (err) {
-      console.error("❌ Error fetching approval:", err.message);
-      setError(err.message);
+      setError(err.message || "Gagal memuat detail proposal");
       throw err;
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  /**
-   * Approve proposal
-   */
-  const approveProposal = async (id, note = "") => {
+  const approveProposal = useCallback(async (rowOrId, note) => {
     setLoading(true);
     setError(null);
-
+    const id = getProposalId(rowOrId);
+    console.log(
+      "🟢 Approve → id:",
+      id,
+      "endpoint:",
+      API_ENDPOINTS.PROPOSAL.APPROVE(id),
+      "row:",
+      rowOrId
+    );
     try {
-      const payload = note ? { note } : {};
-      const endpoint = API_ENDPOINTS.PROPOSAL.APPROVE(id);
-
-      console.log("🔍 Approving proposal:", endpoint);
-
-      const data = await apiPost(endpoint, payload);
-
-      console.log("✅ Proposal approved successfully");
-
-      return data;
+      const payload = note ? { note } : null; // body opsional
+      return await apiPost(API_ENDPOINTS.PROPOSAL.APPROVE(id), payload);
     } catch (err) {
-      console.error("❌ Error approving proposal:", err.message);
-      setError(err.message);
-      throw err;
+      // Gabungkan pesan FE + payload error dari backend
+      const d = err?.data || {};
+      const pieces = [
+        err?.message,
+        d?.friendly,
+        d?.error,
+        d?.apply_error &&
+          (typeof d.apply_error === "string"
+            ? d.apply_error
+            : JSON.stringify(d.apply_error)),
+        d?.errors &&
+          (typeof d.errors === "string"
+            ? d.errors
+            : JSON.stringify(d.errors)),
+      ].filter(Boolean);
+      const msg = pieces.join("\n— ");
+      setError(msg || "Gagal menyetujui proposal");
+      throw new Error(msg || err.message);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  /**
-   * Reject proposal
-   */
-  const rejectProposal = async (id, reason) => {
+  const rejectProposal = useCallback(async (rowOrId, reason) => {
     setLoading(true);
     setError(null);
-
+    const id = getProposalId(rowOrId);
     try {
-      const endpoint = API_ENDPOINTS.PROPOSAL.REJECT(id);
-
-      console.log("🔍 Rejecting proposal:", endpoint);
-
-      const data = await apiPost(endpoint, { reason });
-
-      console.log("✅ Proposal rejected successfully");
-
-      return data;
+      const payload = reason ? { reason } : null;
+      return await apiPost(API_ENDPOINTS.PROPOSAL.REJECT(id), payload);
     } catch (err) {
-      console.error("❌ Error rejecting proposal:", err.message);
-      setError(err.message);
-      throw err;
+      const d = err?.data || {};
+      const pieces = [
+        err?.message,
+        d?.friendly,
+        d?.error,
+        d?.errors &&
+          (typeof d.errors === "string"
+            ? d.errors
+            : JSON.stringify(d.errors)),
+      ].filter(Boolean);
+      const msg = pieces.join("\n— ");
+      setError(msg || "Gagal menolak proposal");
+      throw new Error(msg || err.message);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   return {
     loading,
@@ -126,5 +129,6 @@ export function useProposal() {
     getProposalById,
     approveProposal,
     rejectProposal,
+    normalizeStatus,
   };
 }

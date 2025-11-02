@@ -1,10 +1,9 @@
-// lib/config.js
+// src/lib/config.js
 
 /**
  * API Configuration
  * Central place for all API endpoints
  */
-
 export const API_CONFIG = {
   BASE_URL: "http://127.0.0.1:8000/api",
   TIMEOUT: 30000, // 30 seconds
@@ -12,6 +11,9 @@ export const API_CONFIG = {
 
 /**
  * API Endpoints
+ * NOTE:
+ * - Gunakan getApiUrl(endpoint) saat fetch agar BASE_URL otomatis terpasang
+ * - Endpoint di sini adalah PATH (diawali "/")
  */
 export const API_ENDPOINTS = {
   // Auth
@@ -22,52 +24,68 @@ export const API_ENDPOINTS = {
     PROFILE: "/profile",
   },
 
-  // Tanah (Admin)
+  // Tanah (read-only publik/admin)
   TANAH: {
     LIST: "/tanah",
-    CREATE: "/tanah",
     SHOW: (id) => `/tanah/${id}`,
+    CREATE: "/tanah",
     UPDATE: (id) => `/tanah/${id}`,
     DELETE: (id) => `/tanah/${id}`,
   },
 
-  // Warga (Admin)
+  // Warga (read-only publik/admin)
   WARGA: {
     LIST: "/warga",
-    CREATE: "/warga",
     SHOW: (id) => `/warga/${id}`,
+    CREATE: "/warga",
     UPDATE: (id) => `/warga/${id}`,
     DELETE: (id) => `/warga/${id}`,
   },
 
-  // Bidang (Admin)
+  // Bidang (read-only publik/admin)
   BIDANG: {
     LIST: "/bidang",
-    CREATE: "/bidang",
     SHOW: (id) => `/bidang/${id}`,
+    CREATE: "/bidang",
     UPDATE: (id) => `/bidang/${id}`,
     DELETE: (id) => `/bidang/${id}`,
   },
 
-  // 🔥 FIX: Update endpoint sesuai backend Laravel
-  // Proposal/Approval (Kepala Desa only)
+  // Kepala Desa — approvals
   PROPOSAL: {
-    LIST: "/kepala/approvals", // ✅ Fix dari /proposal ke /kepala/approvals
+    LIST: "/kepala/approvals",
     SHOW: (id) => `/kepala/approvals/${id}`,
     APPROVE: (id) => `/kepala/approvals/${id}/approve`,
     REJECT: (id) => `/kepala/approvals/${id}/reject`,
   },
 
-  // Audit (Kepala Desa only)
+  // Audit
   AUDIT: {
     LIST: "/audit/riwayat",
     SHOW: (id) => `/audit/${id}`,
   },
+
+  // 🔹 Staff — endpoints proposal (sesuai routes di Laravel)
+  STAFF: {
+    PROPOSALS: {
+      TANAH: {
+        CREATE: "/staff/proposals/tanah",
+        UPDATE: (id) => `/staff/proposals/tanah/${id}`,     // PATCH (atau POST + _method=PATCH)
+        DELETE: (id) => `/staff/proposals/tanah/${id}`,     // DELETE (atau POST + _method=DELETE)
+        BIDANG: {
+          CREATE: (tanahId) => `/staff/proposals/tanah/${tanahId}/bidang`,
+          UPDATE: (id) => `/staff/proposals/bidang/${id}`,  // PUT
+          DELETE: (id) => `/staff/proposals/bidang/${id}`,  // DELETE
+        },
+      },
+      WARGA: {
+        CREATE: "/staff/proposals/warga",
+        UPDATE: (id) => `/staff/proposals/warga/${id}`,     // PATCH (atau POST + _method=PATCH)
+        DELETE: (id) => `/staff/proposals/warga/${id}`,     // DELETE (atau POST + _method=DELETE)
+      },
+    },
+  },
 };
 
-/**
- * Get full URL for endpoint
- */
-export const getApiUrl = (endpoint) => {
-  return `${API_CONFIG.BASE_URL}${endpoint}`;
-};
+/** Get full URL for endpoint */
+export const getApiUrl = (endpoint) => `${API_CONFIG.BASE_URL}${endpoint}`;
