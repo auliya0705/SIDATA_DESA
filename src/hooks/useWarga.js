@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
 import { API_ENDPOINTS } from "@/lib/config";
 
@@ -91,23 +91,45 @@ export function useWarga() {
   };
 
   /**
-   * Delete warga
+   * Delete warga (buat proposal hapus via POST + _method=DELETE)
    */
-  const deleteWarga = async (id) => {
+  const deleteWarga = useCallback(async (id, reason = "") => {
+    if (!id) throw new Error("ID tidak valid.");
+
     setLoading(true);
-    setError(null);
+    setError("");
 
     try {
-      const data = await apiDelete(API_ENDPOINTS.WARGA.DELETE(id));
-      return data;
-    } catch (err) {
-      setError(err.message);
-      throw err;
+      const token = localStorage.getItem("token") || "";
+
+      const fd = new FormData();
+      fd.append("_method", "DELETE"); // spoof method
+      if (reason) fd.append("reason", reason);
+
+      const res = await fetch(`/api/staff/proposals/warga/${id}`, {
+        method: "POST", // kirim POST
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd, // biarkan browser set boundary
+      });
+
+      const text = await res.text();
+
+      if (!res.ok) {
+        try {
+          const j = JSON.parse(text);
+          throw new Error(j.message || `HTTP ${res.status}`);
+        } catch {
+          throw new Error(`${res.status}: ${res.statusText}`);
+        }
+      }
+
+      return text ? JSON.parse(text) : true; // 202/204/200
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
+  // >>> RETURN agar hook tidak undefined
   return {
     loading,
     error,

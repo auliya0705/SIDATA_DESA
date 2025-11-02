@@ -1,229 +1,152 @@
 "use client";
 
-import { useState } from "react";
-import { MoreVertical, Eye, CheckCircle, XCircle } from "lucide-react";
+import { useMemo } from "react";
+import { Eye, Check, X } from "lucide-react";
+
+function safeParseJSON(v) {
+  if (typeof v !== "string") return v || null;
+  try {
+    return JSON.parse(v);
+  } catch {
+    return null;
+  }
+}
+
+function extractNamaNik(row) {
+  const payload = safeParseJSON(row.payload) ?? row.payload ?? {};
+  const snap = payload?.snapshot ?? null;
+  const after = payload?.after ?? null;
+  const before = payload?.before ?? null;
+
+  // pakai nilai yang mungkin sudah dinormalisasi di page.js terlebih dulu
+  const nik =
+    row.display_nik ??
+    row.nik ??
+    snap?.nik ??
+    after?.nik ??
+    before?.nik ??
+    payload?.nik ??
+    "-";
+
+  const nama =
+    row.display_nama ??
+    row.nama_lengkap ??
+    snap?.nama_lengkap ??
+    after?.nama_lengkap ??
+    before?.nama_lengkap ??
+    payload?.nama_lengkap ??
+    "-";
+
+  return { nik, nama };
+}
 
 export default function ApprovalTable({
   data = [],
   onApprove,
   onReject,
   onViewDetail,
-  getModuleName,
-  getActionName,
+  getModuleName = (m) => m,
+  getActionName = (a) => a,
 }) {
-  const [showActionMenu, setShowActionMenu] = useState(null);
+  const rows = useMemo(() => data || [], [data]);
 
-  const getStatusBadgeColor = (status) => {
-    switch (status) {
-      case "pending":
-        return "bg-yellow-100 text-yellow-800";
-      case "approved":
-        return "bg-green-100 text-green-800";
-      case "rejected":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const getStatusLabel = (status) => {
-    switch (status) {
-      case "pending":
-        return "Pending";
-      case "approved":
-        return "Approved";
-      case "rejected":
-        return "Ditolak";
-      default:
-        return status;
-    }
-  };
-
-  // Extract relevant data from payload based on module
-  const getDisplayData = (item) => {
-    const payload = item.payload || {};
-
-    switch (item.module) {
-      case "warga":
-        return {
-          primaryId: payload.nik || "-",
-          primaryName: payload.nama_lengkap || payload.nama || "-",
-        };
-      case "tanah":
-        return {
-          primaryId: payload.id_bidang || item.target_id || "-",
-          primaryName: payload.pemilik || payload.lokasi || "-",
-        };
-      case "bidang":
-        return {
-          primaryId: payload.id_bidang || item.target_id || "-",
-          primaryName: payload.nama_bidang || "-",
-        };
-      default:
-        return {
-          primaryId: item.target_id || "-",
-          primaryName: "-",
-        };
-    }
-  };
-
-  // Format date to Indonesian format
-  const formatDate = (dateString) => {
-    if (!dateString) return "-";
-
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString("id-ID", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    } catch (error) {
-      return dateString;
-    }
-  };
+  if (!rows.length) {
+    return null;
+  }
 
   return (
-    <div className="overflow-x-auto bg-white rounded-lg shadow">
+    <div className="overflow-x-auto bg-white rounded-lg shadow-sm border border-gray-200">
       <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-teal-700 text-white">
           <tr>
-            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">
-              #
-            </th>
-            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">
-              ID Proposal
-            </th>
-            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">
-              Modul
-            </th>
-            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">
-              ID/NIK
-            </th>
-            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">
-              Nama/Keterangan
-            </th>
-            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">
-              Jenis Perubahan
-            </th>
-            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">
-              Tanggal Pengajuan
-            </th>
-            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">
-              Status
-            </th>
-            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">
-              Aksi
-            </th>
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">#</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">ID PROPOSAL</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">MODUL</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">ID/NIK</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">NAMA/KETERANGAN</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">JENIS PERUBAHAN</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">TANGGAL PENGAJUAN</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">STATUS</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">AKSI</th>
           </tr>
         </thead>
+
         <tbody className="bg-white divide-y divide-gray-200">
-          {data.map((item, index) => {
-            const displayData = getDisplayData(item);
+          {rows.map((row, idx) => {
+            const { nik, nama } = extractNamaNik(row);
 
             return (
-              <tr key={item.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 text-sm text-gray-700">{index + 1}</td>
+              <tr key={row.id} className="hover:bg-gray-50 transition-colors">
+                <td className="px-4 py-3 text-sm text-gray-700">{idx + 1}</td>
 
-                <td className="px-6 py-4 text-sm text-gray-900 font-medium">
-                  #{item.id}
+                <td className="px-4 py-3 text-sm text-teal-700 font-medium">#{row.id}</td>
+
+                <td className="px-4 py-3 text-sm text-gray-700">
+                  {getModuleName(row.module)}
                 </td>
 
-                <td className="px-6 py-4 text-sm text-gray-700">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
-                    {getModuleName(item.module)}
-                  </span>
+                <td className="px-4 py-3 text-sm font-mono text-gray-800 whitespace-nowrap">
+                  {nik}
                 </td>
 
-                <td className="px-6 py-4 text-sm text-gray-900 font-mono">
-                  {displayData.primaryId}
+                <td className="px-4 py-3 text-sm text-gray-800">
+                  {nama}
                 </td>
 
-                <td className="px-6 py-4 text-sm text-gray-900">
-                  {displayData.primaryName}
+                <td className="px-4 py-3 text-sm text-gray-700">
+                  {getActionName(row.action)}
                 </td>
 
-                <td className="px-6 py-4 text-sm text-gray-700">
-                  {getActionName(item.action)}
+                <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
+                  {new Date(row.created_at).toLocaleString("id-ID")}
                 </td>
 
-                <td className="px-6 py-4 text-sm text-gray-700">
-                  {formatDate(item.created_at)}
-                </td>
-
-                <td className="px-6 py-4 text-sm">
+                <td className="px-4 py-3 text-sm">
                   <span
-                    className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusBadgeColor(
-                      item.status
-                    )}`}
+                    className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                      row.status === "pending"
+                        ? "bg-yellow-100 text-yellow-800"
+                        : row.status === "approved"
+                        ? "bg-green-100 text-green-800"
+                        : "bg-red-100 text-red-800"
+                    }`}
                   >
-                    {getStatusLabel(item.status)}
+                    {row.status === "pending"
+                      ? "Pending"
+                      : row.status === "approved"
+                      ? "Approved"
+                      : "Ditolak"}
                   </span>
                 </td>
 
-                <td className="px-6 py-4 text-sm text-gray-700 relative">
-                  <button
-                    onClick={() =>
-                      setShowActionMenu(
-                        showActionMenu === item.id ? null : item.id
-                      )
-                    }
-                    className="p-1 hover:bg-gray-100 rounded"
-                  >
-                    <MoreVertical size={18} />
-                  </button>
-
-                  {/* Action Menu Dropdown */}
-                  {showActionMenu === item.id && (
-                    <>
-                      {/* Backdrop to close menu when clicking outside */}
-                      <div
-                        className="fixed inset-0 z-10"
-                        onClick={() => setShowActionMenu(null)}
-                      />
-
-                      <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+                <td className="px-4 py-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => onViewDetail && onViewDetail(row)}
+                      className="px-2 py-1 border rounded hover:bg-gray-50"
+                      title="Detail"
+                    >
+                      <Eye size={16} />
+                    </button>
+                    {row.status === "pending" && (
+                      <>
                         <button
-                          onClick={() => {
-                            onViewDetail && onViewDetail(item);
-                            setShowActionMenu(null);
-                          }}
-                          className="w-full flex items-center space-x-2 px-4 py-2 hover:bg-gray-50 text-gray-700 text-left rounded-t-lg"
+                          onClick={() => onApprove && onApprove(row.id)}
+                          className="px-2 py-1 border rounded text-green-700 hover:bg-green-50"
+                          title="Approve"
                         >
-                          <Eye size={16} />
-                          <span>Lihat Detail</span>
+                          <Check size={16} />
                         </button>
-
-                        {item.status === "pending" && (
-                          <>
-                            <div className="border-t border-gray-100" />
-                            <button
-                              onClick={() => {
-                                onApprove && onApprove(item.id);
-                                setShowActionMenu(null);
-                              }}
-                              className="w-full flex items-center space-x-2 px-4 py-2 hover:bg-green-50 text-green-600 text-left"
-                            >
-                              <CheckCircle size={16} />
-                              <span>Approve</span>
-                            </button>
-                            <button
-                              onClick={() => {
-                                onReject && onReject(item.id);
-                                setShowActionMenu(null);
-                              }}
-                              className="w-full flex items-center space-x-2 px-4 py-2 hover:bg-red-50 text-red-600 text-left rounded-b-lg"
-                            >
-                              <XCircle size={16} />
-                              <span>Tolak</span>
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </>
-                  )}
+                        <button
+                          onClick={() => onReject && onReject(row.id)}
+                          className="px-2 py-1 border rounded text-red-700 hover:bg-red-50"
+                          title="Tolak"
+                        >
+                          <X size={16} />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </td>
               </tr>
             );
@@ -231,7 +154,10 @@ export default function ApprovalTable({
         </tbody>
       </table>
 
-      {/* Empty state handled in parent */}
+      {/* Debug minimal: tampilkan payload item pertama (opsional, bisa hapus) */}
+      {/* <pre className="p-3 text-xs bg-gray-50 border-t overflow-auto">
+        {JSON.stringify(rows[0], null, 2)}
+      </pre> */}
     </div>
   );
 }

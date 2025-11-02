@@ -14,13 +14,11 @@ export default function CreateWargaPage() {
     setLoading(true);
 
     try {
-      // Create FormData for file upload
+      // --- Build FormData for upload ---
       const submitData = new FormData();
 
-      // Append all form fields (skip empty values)
       Object.keys(formData).forEach((key) => {
         if (key === "foto_ktp" && formData[key]) {
-          // File upload
           submitData.append(key, formData[key]);
         } else if (
           key !== "foto_ktp_existing" &&
@@ -32,38 +30,47 @@ export default function CreateWargaPage() {
         }
       });
 
-      // Call API - This creates a PROPOSAL
-      // Don't set Content-Type header - browser will auto-set with boundary
-      const response = await fetch(
-        "http://127.0.0.1:8000/api/staff/proposals/warga",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-          body: submitData,
-        }
-      );
+      // --- POST request tanpa Content-Type manual (biar browser set boundary otomatis) ---
+      const response = await fetch("/api/staff/proposals/warga", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+          Accept: "application/json", // <- penting agar Laravel balas JSON
+        },
+        body: submitData,
+      });
 
-      // Get response as text first to handle HTML error pages
+      // --- Deteksi tipe response ---
+      const contentType = response.headers.get("content-type") || "";
       const responseText = await response.text();
 
       if (!response.ok) {
-        // Try to parse as JSON for error message
-        let errorMessage = `HTTP ${response.status}`;
-        try {
-          const errorData = JSON.parse(responseText);
-          errorMessage = errorData.message || errorMessage;
-        } catch (e) {
-          // If not JSON (HTML error page), show status
-          errorMessage = `${response.status}: ${response.statusText}`;
+        // Error: parse JSON kalau bisa
+        let msg = `HTTP ${response.status}`;
+        if (contentType.includes("application/json")) {
+          try {
+            const data = JSON.parse(responseText);
+            msg = data.message || data.error || msg;
+          } catch (_) {
+            msg = `${response.status}: ${response.statusText}`;
+          }
+        } else {
+          msg = `${response.status}: ${response.statusText}`;
         }
-        throw new Error(errorMessage);
+        throw new Error(msg);
       }
 
-      // Parse successful response
-      const result = JSON.parse(responseText);
+      // --- Hanya parse JSON jika benar-benar JSON ---
+      let result;
+      if (contentType.includes("application/json")) {
+        result = JSON.parse(responseText);
+      } else {
+        throw new Error(
+          "Server mengembalikan non-JSON (kemungkinan halaman HTML redirect atau error)."
+        );
+      }
 
+      // --- Success ---
       alert(
         "Proposal warga berhasil dibuat! Menunggu persetujuan Kepala Desa."
       );

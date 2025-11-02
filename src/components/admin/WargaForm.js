@@ -88,8 +88,8 @@ export default function WargaForm({
     e.preventDefault();
 
     // Validation
-    if (formData.nik.length !== 16) {
-      alert("NIK harus 16 digit!");
+    if (formData.nik.length !== 16 || !/^\d{16}$/.test(formData.nik)) {
+      alert("NIK harus 16 digit angka!");
       return;
     }
 
@@ -138,7 +138,7 @@ export default function WargaForm({
               value={formData.nik}
               onChange={handleChange}
               maxLength={16}
-              pattern="[0-9]{16}"
+              pattern="\d{16}"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent font-mono"
               placeholder="3201123456781221"
               required
@@ -179,10 +179,11 @@ export default function WargaForm({
                 required
               >
                 <option value="">-- Pilih --</option>
-                <option value="BELUM_KAWIN">Belum Kawin</option>
+                {/* Harus sesuai enum DB: 'BELUM KAWIN','KAWIN','CERAI HIDUP','CERAI MATI' */}
+                <option value="BELUM KAWIN">Belum Kawin</option>
                 <option value="KAWIN">Kawin</option>
-                <option value="CERAI_HIDUP">Cerai Hidup</option>
-                <option value="CERAI_MATI">Cerai Mati</option>
+                <option value="CERAI HIDUP">Cerai Hidup</option>
+                <option value="CERAI MATI">Cerai Mati</option>
               </select>
             </div>
           </div>

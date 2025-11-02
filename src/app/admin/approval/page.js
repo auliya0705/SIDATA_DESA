@@ -59,7 +59,18 @@ export default function ApprovalPage() {
   // Fetch proposals when filters change
   useEffect(() => {
     fetchProposals();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, rowsPerPage, selectedModule, selectedStatus, searchQuery]);
+
+  // ---- helper: parse payload kalau bentuknya string
+  const parseMaybeJson = (v) => {
+    if (typeof v !== "string") return v;
+    try {
+      return JSON.parse(v);
+    } catch {
+      return null;
+    }
+  };
 
   const fetchProposals = async () => {
     try {
@@ -77,21 +88,55 @@ export default function ApprovalPage() {
 
       const response = await getProposalList(params);
 
-      // Handle Laravel pagination structure
-      if (response.data) {
-        setProposals(response.data);
-        setPagination({
-          total: response.total || 0,
-          per_page: response.per_page || 10,
-          current_page: response.current_page || 1,
-          last_page: response.last_page || 1,
-        });
-      } else {
-        setProposals([]);
-      }
+      // --- NORMALISASI: isi nik & nama_lengkap dari payload/snapshot/after/before
+      const normalized = (response?.data ?? []).map((row) => {
+        const payload = parseMaybeJson(row.payload) ?? row.payload ?? null;
+        const snap = payload?.snapshot ?? null;
 
-      // Calculate stats (you might want to get this from a separate endpoint)
-      calculateStats(response.data || []);
+        let nik = row.nik ?? null;
+        let nama = row.nama_lengkap ?? null;
+
+        switch (row.action) {
+          case "create":
+            nik = nik ?? payload?.nik ?? null;
+            nama = nama ?? payload?.nama_lengkap ?? null;
+            break;
+          case "update":
+            nik = nik ?? payload?.after?.nik ?? payload?.before?.nik ?? null;
+            nama =
+              nama ??
+              payload?.after?.nama_lengkap ??
+              payload?.before?.nama_lengkap ??
+              null;
+            break;
+          case "delete":
+            nik = nik ?? snap?.nik ?? null;
+            nama = nama ?? snap?.nama_lengkap ?? null;
+            break;
+        }
+
+        // fallback ke "-" agar tabel rapi
+        return {
+          ...row,
+          nik: nik ?? "-",
+          nama_lengkap: nama ?? "-",
+          // simpan juga versi display_* kalau tabelmu memakainya
+          display_nik: nik ?? "-",
+          display_nama: nama ?? "-",
+          // jaga-jaga: id list bisa memakai target_id
+          id: row.id,
+        };
+      });
+
+      setProposals(normalized);
+      setPagination({
+        total: response?.total || 0,
+        per_page: response?.per_page || rowsPerPage,
+        current_page: response?.current_page || currentPage,
+        last_page: response?.last_page || 1,
+      });
+
+      calculateStats(normalized);
     } catch (err) {
       console.error("Error fetching proposals:", err);
     } finally {
@@ -404,33 +449,44 @@ export default function ApprovalPage() {
                 <ChevronLeft size={18} />
               </button>
 
-              {renderPagination().map((page, index) => (
-                <button
-                  key={index}
-                  onClick={() =>
-                    typeof page === "number" && setCurrentPage(page)
-                  }
-                  disabled={page === "..."}
-                  className={`
-                    px-3 py-1 rounded text-sm
-                    ${
+              {(() => {
+                const pages = [];
+                const totalPages = pagination.last_page;
+                pages.push(1);
+                if (currentPage > 3) pages.push("...");
+                for (
+                  let i = Math.max(2, currentPage - 1);
+                  i <= Math.min(totalPages - 1, currentPage + 1);
+                  i++
+                ) {
+                  if (!pages.includes(i)) pages.push(i);
+                }
+                if (currentPage < totalPages - 2) pages.push("...");
+                if (totalPages > 1 && !pages.includes(totalPages))
+                  pages.push(totalPages);
+                return pages.map((page, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() =>
+                      typeof page === "number" && setCurrentPage(page)
+                    }
+                    disabled={page === "..."}
+                    className={`px-3 py-1 rounded text-sm ${
                       page === currentPage
                         ? "bg-teal-700 text-white"
                         : page === "..."
                         ? "cursor-default"
                         : "hover:bg-gray-100"
-                    }
-                  `}
-                >
-                  {page}
-                </button>
-              ))}
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ));
+              })()}
 
               <button
                 onClick={() =>
-                  setCurrentPage(
-                    Math.min(pagination.last_page, currentPage + 1)
-                  )
+                  setCurrentPage(Math.min(pagination.last_page, currentPage + 1))
                 }
                 disabled={currentPage === pagination.last_page}
                 className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -467,9 +523,7 @@ export default function ApprovalPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-600">ID Proposal</p>
-                  <p className="font-medium text-gray-900">
-                    #{selectedItem.id}
-                  </p>
+                  <p className="font-medium text-gray-900">#{selectedItem.id}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Modul</p>
