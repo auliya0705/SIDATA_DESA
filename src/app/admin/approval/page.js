@@ -16,11 +16,14 @@ import {
 import ApprovalTable from "@/components/admin/ApprovalTable";
 import { getCurrentUser } from "@/lib/auth";
 import { useProposal } from "@/hooks/useProposal";
-import { useWarga } from "@/hooks/useWarga"; // preflight NIK + ambil BEFORE warga
+import { useWarga } from "@/hooks/useWarga";
+import { apiGet } from "@/lib/api";
+import { API_ENDPOINTS } from "@/lib/config";
 
 export default function ApprovalPage() {
   const router = useRouter();
-  const { loading, error, getProposalList, approveProposal, rejectProposal } = useProposal();
+  const { loading, error, getProposalList, approveProposal, rejectProposal } =
+    useProposal();
   const { checkNikUnique, getWargaById } = useWarga();
 
   // State management
@@ -49,7 +52,7 @@ export default function ApprovalPage() {
     rejected: 0,
   });
 
-  // ---- helper: parse payload kalau bentuknya string
+  // ---- helpers
   const parseMaybeJson = (v) => {
     if (typeof v !== "string") return v;
     try {
@@ -64,33 +67,58 @@ export default function ApprovalPage() {
     const payload = parseMaybeJson(row?.payload) ?? row?.payload ?? {};
     const action = String(row?.action || "").toLowerCase();
 
-    const before   = payload?.before ?? null;
-    const after    = payload?.after ?? null;
+    const before = payload?.before ?? null;
+    const after = payload?.after ?? null;
     const snapshot = payload?.snapshot ?? null;
 
     let nikProposed = null;
-    let ignoreId    = null;
+    let ignoreId = null;
 
     if (action === "update") {
-      // NIK yang akan dipakai setelah update (fallback ke before/payload/row)
       nikProposed = after?.nik ?? payload?.nik ?? before?.nik ?? row?.nik ?? null;
-      // ID record yang sedang diubah → PRIORITAS ke before.id
-      ignoreId    = before?.id ?? payload?.id ?? row?.target_id ?? row?.id ?? null;
+      ignoreId = before?.id ?? payload?.id ?? row?.target_id ?? row?.id ?? null;
     } else if (action === "create") {
       nikProposed = payload?.nik ?? row?.nik ?? null;
-      ignoreId    = null;
+      ignoreId = null;
     } else if (action === "delete") {
       nikProposed = snapshot?.nik ?? row?.nik ?? null;
-      ignoreId    = snapshot?.id ?? row?.target_id ?? row?.id ?? null;
+      ignoreId = snapshot?.id ?? row?.target_id ?? row?.id ?? null;
     } else {
       nikProposed = payload?.nik ?? row?.nik ?? null;
-      ignoreId    = row?.target_id ?? row?.id ?? null;
+      ignoreId = row?.target_id ?? row?.id ?? null;
     }
 
     return { nikProposed, ignoreId };
   };
 
-  // Check if user is Kepala Desa
+  // Fallback preview untuk BIDANG lama (tanpa preview_pemilik di payload)
+  async function fetchBidangPreview(bidangId) {
+    try {
+      const d = await apiGet(API_ENDPOINTS.BIDANG.SHOW(bidangId));
+      const nik = d?.tanah?.pemilik?.nik ?? null;
+      const nama = d?.tanah?.pemilik?.nama ?? d?.tanah?.pemilik?.nama_lengkap ?? null;
+      const tanah_id = d?.tanah?.id ?? null;
+      const nomor_urut = d?.tanah?.nomor_urut ?? null;
+      return { nik, nama, tanah_id, nomor_urut };
+    } catch {
+      return null;
+    }
+  }
+
+  // Fallback preview untuk TANAH (agar list delete/update tanah menampilkan pemilik)
+  async function fetchTanahPreview(tanahId) {
+    try {
+      const d = await apiGet(API_ENDPOINTS.TANAH.SHOW(tanahId));
+      const nik = d?.pemilik?.nik ?? null;
+      const nama = d?.pemilik?.nama_lengkap ?? d?.pemilik_nama ?? null;
+      const nomor_urut = d?.nomor_urut ?? null;
+      return { nik, nama, nomor_urut };
+    } catch {
+      return null;
+    }
+  }
+
+  // Check role Kepala
   useEffect(() => {
     const user = getCurrentUser();
     if (!user || (user.role !== "kepala_desa" && user.role !== "kepala")) {
@@ -113,8 +141,6 @@ export default function ApprovalPage() {
         page: currentPage,
         per_page: rowsPerPage,
       };
-
-      // Add filters
       if (selectedModule) params.module = selectedModule;
       if (selectedStatus) params.status = selectedStatus;
       if (searchQuery.trim()) params.search = searchQuery.trim();
@@ -122,86 +148,132 @@ export default function ApprovalPage() {
       const response = await getProposalList(params);
       const rows = response?.data ?? [];
 
-      // 1) Siapkan "before map" untuk warga/update
+      // 1) Ambil BEFORE warga untuk baris update warga
       const wargaUpdateRows = rows.filter(
         (r) => r.module === "warga" && r.action === "update" && r.target_id
       );
-
       const beforeMap = {};
       await Promise.all(
         wargaUpdateRows.map(async (r) => {
           try {
             const before = await getWargaById(r.target_id);
             beforeMap[r.target_id] = before || null;
-          } catch (_) {
+          } catch {
             beforeMap[r.target_id] = null;
           }
         })
       );
 
-      // 2) Normalisasi + bentuk display untuk nik/nama
-      const normalized = rows.map((row) => {
+      // 2) Ambil fallback preview BIDANG/TANAH yang belum punya preview di payload
+      const bidangNeeding = rows.filter((r) => {
+        if (r.module !== "bidang" || !r.target_id) return false;
+        const payload = parseMaybeJson(r.payload) ?? r.payload ?? {};
+        return !payload?.preview_pemilik;
+      });
+
+      const tanahNeeding = rows.filter((r) => {
+        if (r.module !== "tanah" || !r.target_id) return false;
+        const payload = parseMaybeJson(r.payload) ?? r.payload ?? {};
+        return !(payload?.preview_pemilik || payload?.snapshot);
+      });
+
+      const bidangPreviewMap = {};
+      const tanahPreviewMap = {};
+
+      await Promise.all([
+        ...bidangNeeding.map(async (r) => {
+          const prev = await fetchBidangPreview(r.target_id);
+          if (prev) bidangPreviewMap[r.target_id] = prev;
+        }),
+        ...tanahNeeding.map(async (r) => {
+          const prev = await fetchTanahPreview(r.target_id);
+          if (prev) tanahPreviewMap[r.target_id] = prev;
+        }),
+      ]);
+
+      // 3) Normalisasi baris
+      const proposalRowsNormalized = rows.map((row) => {
         const payload = parseMaybeJson(row.payload) ?? row.payload ?? {};
         const snap = payload?.snapshot ?? null;
 
+        // preview untuk bidang/tanah
+        let pv = null;
+        if (row.module === "bidang") {
+          pv = payload?.preview_pemilik ?? bidangPreviewMap[row.target_id] ?? null;
+        } else if (row.module === "tanah") {
+          pv =
+            payload?.preview_pemilik ??
+            snap ??
+            tanahPreviewMap[row.target_id] ??
+            null;
+        }
+
         let nik = row.nik ?? null;
-        let nama = row.nama_lengkap ?? null;
+        let nama = row.nama_lengkap ?? payload?.nama_lengkap ?? null;
+        if (pv) {
+          if (pv.nik || pv.nama || pv.nama_lengkap) {
+            nik = pv.nik ?? nik;
+            nama = pv.nama ?? pv.nama_lengkap ?? nama;
+          } else if (pv.pemilik) {
+            nik = pv.pemilik.nik ?? nik;
+            nama = pv.pemilik.nama ?? pv.pemilik.nama_lengkap ?? nama;
+          }
+        }
 
-        // Base new values (sesudah apply) dari payload — khusus warga/update payload = delta fields
-        const newNik = payload?.nik ?? null;
-        const newNama = payload?.nama_lengkap ?? null;
-
+        // khusus warga/update → tampilkan old → new bila berubah
         if (row.module === "warga" && row.action === "update") {
           const before = beforeMap[row.target_id] || {};
+          const newNik = payload?.nik ?? null;
+          const newNama = payload?.nama_lengkap ?? null;
+
           const oldNik = before?.nik ?? null;
           const oldNama = before?.nama_lengkap ?? null;
 
-          // Tentukan display "old → new" jika berubah; fallback kalau tidak ada perubahan
           const display_nik =
             newNik && oldNik && String(newNik) !== String(oldNik)
               ? `${oldNik} → ${newNik}`
-              : (newNik ?? oldNik ?? "-");
+              : newNik ?? oldNik ?? "-";
 
           const display_nama =
             newNama && oldNama && String(newNama) !== String(oldNama)
               ? `${oldNama} → ${newNama}`
-              : (newNama ?? oldNama ?? "-");
-
-          // isi nik/nama standar untuk tabel juga (biar konsisten)
-          nik = display_nik;
-          nama = display_nama;
+              : newNama ?? oldNama ?? "-";
 
           return {
             ...row,
-            _before: before,          // simpan untuk modal detail
-            _after: payload || {},    // delta
-            nik: nik ?? "-",
-            nama_lengkap: nama ?? "-",
-            display_nik: nik ?? "-",
-            display_nama: nama ?? "-",
+            _before: before,
+            _after: payload || {},
+            nik: display_nik ?? "-",
+            nama_lengkap: display_nama ?? "-",
+            display_nik: display_nik ?? "-",
+            display_nama: display_nama ?? "-",
             id: row.id,
           };
         }
 
-        // Default behavior (create/delete/others)
+        // default untuk create/update/delete non-warga
         switch (row.action) {
           case "create":
             nik = nik ?? payload?.nik ?? null;
             nama = nama ?? payload?.nama_lengkap ?? null;
             break;
           case "update":
-            // kalau bukan warga (mis. tanah/bidang) masih pakai after/before jika ada
-            nik = nik ?? payload?.after?.nik ?? payload?.before?.nik ?? newNik ?? null;
+            nik =
+              nik ??
+              payload?.after?.nik ??
+              payload?.before?.nik ??
+              payload?.nik ??
+              null;
             nama =
               nama ??
               payload?.after?.nama_lengkap ??
               payload?.before?.nama_lengkap ??
-              newNama ??
+              payload?.nama_lengkap ??
               null;
             break;
           case "delete":
-            nik = nik ?? snap?.nik ?? null;
-            nama = nama ?? snap?.nama_lengkap ?? null;
+              nik = nik ?? snap?.nik ?? snap?.pemilik?.nik ?? null;
+              nama = nama ?? snap?.nama_lengkap ?? snap?.pemilik?.nama_lengkap ?? snap?.pemilik?.nama ?? null;
             break;
         }
 
@@ -215,7 +287,7 @@ export default function ApprovalPage() {
         };
       });
 
-      setProposals(normalized);
+      setProposals(proposalRowsNormalized);
       setPagination({
         total: response?.total || 0,
         per_page: response?.per_page || rowsPerPage,
@@ -223,7 +295,16 @@ export default function ApprovalPage() {
         last_page: response?.last_page || 1,
       });
 
-      calculateStats(normalized);
+      // gunakan stats dari backend bila ada, kalau tidak hitung lokal
+      if (response?.stats) {
+        setStats({
+          pending: response.stats.pending ?? 0,
+          approved: response.stats.approved ?? 0,
+          rejected: response.stats.rejected ?? 0,
+        });
+      } else {
+        calculateStats(proposalRowsNormalized);
+      }
     } catch (err) {
       console.error("Error fetching proposals:", err);
     } finally {
@@ -242,17 +323,23 @@ export default function ApprovalPage() {
   const handleSearch = (e) => {
     const value = e.target.value;
     setSearchQuery(value);
-    setCurrentPage(1); // Reset to first page on search
+    setCurrentPage(1);
   };
 
   // ========= APPROVE with preflight NIK duplicate check =========
   const handleApprove = async (row) => {
     if (!confirm("Yakin ingin menyetujui pengajuan ini?")) return;
     try {
-      if (row?.module === "warga" && (row?.action === "create" || row?.action === "update")) {
+      if (
+        row?.module === "warga" &&
+        (row?.action === "create" || row?.action === "update")
+      ) {
         const { nikProposed, ignoreId } = pickNikAndIgnoreId(row);
         if (nikProposed) {
-          const { exists, conflictId } = await checkNikUnique(nikProposed, ignoreId);
+          const { exists, conflictId } = await checkNikUnique(
+            nikProposed,
+            ignoreId
+          );
           if (exists) {
             alert(
               [
@@ -283,12 +370,14 @@ export default function ApprovalPage() {
     const reason = prompt("Alasan penolakan:");
     if (!reason || !reason.trim()) return;
     try {
-      const res = await rejectProposal(row, reason); // ← kirim row
+      const res = await rejectProposal(row, reason);
       alert(res?.message || "Data berhasil ditolak!");
       await fetchProposals();
     } catch (err) {
       if (err.message.includes("404")) {
-        alert("Fitur reject belum tersedia di backend. Silakan hubungi administrator.");
+        alert(
+          "Fitur reject belum tersedia di backend. Silakan hubungi administrator."
+        );
       } else {
         alert(err.message || "Gagal menolak data");
       }
@@ -300,7 +389,7 @@ export default function ApprovalPage() {
     setShowDetailModal(true);
   };
 
-  // ---- Pagination helper TANPA hooks (aman untuk JSX kondisi)
+  // ---- Pagination helper
   const renderPagination = () => {
     const pages = [];
     const totalPages = pagination.last_page;
@@ -320,7 +409,6 @@ export default function ApprovalPage() {
     return pages;
   };
 
-  // Format module name for display
   const getModuleName = (module) => {
     const moduleMap = {
       warga: "Data Warga",
@@ -330,7 +418,6 @@ export default function ApprovalPage() {
     return moduleMap[module] || module;
   };
 
-  // Format action name for display
   const getActionName = (action) => {
     const actionMap = {
       create: "Tambah Data",
@@ -340,7 +427,7 @@ export default function ApprovalPage() {
     return actionMap[action] || action;
   };
 
-  // Prevent access if not Kepala Desa
+  // Prevent access if not Kepala Desa (server guard di atas tetap dipertahankan)
   const user = getCurrentUser();
   if (!user || (user.role !== "kepala_desa" && user.role !== "kepala")) {
     return (
@@ -356,19 +443,32 @@ export default function ApprovalPage() {
     );
   }
 
-  // helper untuk render diff di modal (khusus warga/update)
+  // helper untuk render diff di modal (khusus warga/update) — SATU versi saja
   const renderWargaDiff = (row) => {
     if (row?.module !== "warga" || row?.action !== "update") return null;
     const before = row?._before || {};
-    const delta  = row?._after  || {};
+    const delta = row?._after || {};
 
-    const fields = ["nik", "nama_lengkap", "jenis_kelamin", "alamat_lengkap", "pekerjaan", "agama", "status_perkawinan", "pendidikan_terakhir", "kewarganegaraan", "tanggal_lahir", "tempat_lahir", "keterangan"];
+    const fields = [
+      "nik",
+      "nama_lengkap",
+      "jenis_kelamin",
+      "alamat_lengkap",
+      "pekerjaan",
+      "agama",
+      "status_perkawinan",
+      "pendidikan_terakhir",
+      "kewarganegaraan",
+      "tanggal_lahir",
+      "tempat_lahir",
+      "keterangan",
+    ];
 
     const changed = fields
       .map((k) => {
         const oldV = before?.[k] ?? null;
         const newV = k in delta ? delta[k] : undefined; // hanya tampilkan kalau memang dikirim
-        if (typeof newV === "undefined") return null; // tidak ada perubahan untuk field ini
+        if (typeof newV === "undefined") return null;
         const isChanged = String(oldV ?? "") !== String(newV ?? "");
         return { k, oldV, newV, isChanged };
       })
@@ -378,7 +478,9 @@ export default function ApprovalPage() {
 
     return (
       <div className="mt-4">
-        <p className="text-sm text-gray-600 mb-2 font-semibold">Perubahan (before → after):</p>
+        <p className="text-sm text-gray-600 mb-2 font-semibold">
+          Perubahan (before → after):
+        </p>
         <div className="overflow-x-auto">
           <table className="min-w-full border border-gray-200 rounded">
             <thead className="bg-gray-100">
@@ -422,7 +524,9 @@ export default function ApprovalPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600 mb-1">Menunggu Persetujuan</p>
-              <p className="text-3xl font-bold text-yellow-600">{stats.pending}</p>
+              <p className="text-3xl font-bold text-yellow-600">
+                {stats.pending}
+              </p>
             </div>
             <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
               <Clock className="text-yellow-600" size={24} />
@@ -434,7 +538,9 @@ export default function ApprovalPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600 mb-1">Disetujui</p>
-              <p className="text-3xl font-bold text-green-600">{stats.approved}</p>
+              <p className="text-3xl font-bold text-green-600">
+                {stats.approved}
+              </p>
             </div>
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
               <CheckCircle className="text-green-600" size={24} />
@@ -460,12 +566,12 @@ export default function ApprovalPage() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex items-center space-x-3">
             <h2 className="text-xl font-semibold text-gray-800">Approval Data</h2>
-            {isRefreshing && <Loader2 className="animate-spin text-teal-600" size={20} />}
+            {isRefreshing && (
+              <Loader2 className="animate-spin text-teal-600" size={20} />
+            )}
           </div>
 
-          {/* Filters */}
           <div className="flex flex-wrap gap-3">
-            {/* Module Filter */}
             <select
               value={selectedModule}
               onChange={(e) => {
@@ -480,7 +586,6 @@ export default function ApprovalPage() {
               <option value="bidang">Data Bidang</option>
             </select>
 
-            {/* Status Filter */}
             <select
               value={selectedStatus}
               onChange={(e) => {
@@ -501,9 +606,11 @@ export default function ApprovalPage() {
       {/* Action Bar */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-          {/* Search */}
           <div className="relative w-full md:w-96">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              size={20}
+            />
             <input
               type="text"
               placeholder="Cari berdasarkan nama, NIK, atau ID..."
@@ -513,7 +620,6 @@ export default function ApprovalPage() {
             />
           </div>
 
-          {/* Refresh Button */}
           <button
             onClick={fetchProposals}
             disabled={isRefreshing}
@@ -538,7 +644,9 @@ export default function ApprovalPage() {
           <div className="text-center">
             <AlertCircle className="mx-auto text-gray-400 mb-4" size={48} />
             <p className="text-gray-600 font-medium">Tidak ada data</p>
-            <p className="text-gray-500 text-sm mt-1">Belum ada pengajuan yang perlu disetujui</p>
+            <p className="text-gray-500 text-sm mt-1">
+              Belum ada pengajuan yang perlu disetujui
+            </p>
           </div>
         </div>
       ) : (
@@ -549,6 +657,7 @@ export default function ApprovalPage() {
           onViewDetail={handleViewDetail}
           getModuleName={getModuleName}
           getActionName={getActionName}
+          showId={false}   // <-- sembunyikan kolom ID
         />
       )}
 
@@ -570,7 +679,9 @@ export default function ApprovalPage() {
                 <option value={25}>25 rows</option>
                 <option value={50}>50 rows</option>
               </select>
-              <span className="text-sm text-gray-600">| Total: {pagination.total} data</span>
+              <span className="text-sm text-gray-600">
+                | Total: {pagination.total} data
+              </span>
             </div>
 
             <div className="flex items-center space-x-1">
@@ -585,7 +696,9 @@ export default function ApprovalPage() {
               {renderPagination().map((page, idx) => (
                 <button
                   key={idx}
-                  onClick={() => typeof page === "number" && setCurrentPage(page)}
+                  onClick={() =>
+                    typeof page === "number" && setCurrentPage(page)
+                  }
                   disabled={page === "..."}
                   className={`px-3 py-1 rounded text-sm ${
                     page === currentPage
@@ -600,7 +713,9 @@ export default function ApprovalPage() {
               ))}
 
               <button
-                onClick={() => setCurrentPage(Math.min(pagination.last_page, currentPage + 1))}
+                onClick={() =>
+                  setCurrentPage(Math.min(pagination.last_page, currentPage + 1))
+                }
                 disabled={currentPage === pagination.last_page}
                 className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -682,7 +797,9 @@ export default function ApprovalPage() {
 
               {/* Payload Data (raw) */}
               <div>
-                <p className="text-sm text-gray-600 mb-2 font-semibold">Data yang Diajukan (raw):</p>
+                <p className="text-sm text-gray-600 mb-2 font-semibold">
+                  Data yang Diajukan (raw):
+                </p>
                 <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                   <pre className="text-sm overflow-auto whitespace-pre-wrap">
                     {JSON.stringify(selectedItem.payload, null, 2)}
@@ -697,7 +814,9 @@ export default function ApprovalPage() {
               {selectedItem.target_id && (
                 <div>
                   <p className="text-sm text-gray-600">Target ID</p>
-                  <p className="font-medium text-gray-900">{selectedItem.target_id}</p>
+                  <p className="font-medium text-gray-900">
+                    {selectedItem.target_id}
+                  </p>
                 </div>
               )}
             </div>
@@ -708,7 +827,7 @@ export default function ApprovalPage() {
                 <>
                   <button
                     onClick={() => {
-                      handleReject(selectedItem); // ← kirim row
+                      handleReject(selectedItem);
                       setShowDetailModal(false);
                     }}
                     className="px-6 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
@@ -718,7 +837,7 @@ export default function ApprovalPage() {
 
                   <button
                     onClick={() => {
-                      handleApprove(selectedItem); // ← kirim row
+                      handleApprove(selectedItem);
                       setShowDetailModal(false);
                     }}
                     className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"

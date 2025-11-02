@@ -220,11 +220,6 @@ export default function ManagementWargaPage() {
         <h2 className="text-xl font-semibold text-gray-800">
           Data Penduduk Desa
         </h2>
-        {pagination && (
-          <p className="text-sm text-gray-600 mt-1">
-            Total: {pagination.total} warga
-          </p>
-        )}
       </div>
 
       {/* Action Bar */}

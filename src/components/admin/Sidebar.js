@@ -1,3 +1,4 @@
+// src/components/layout/Sidebar.js
 "use client";
 
 import { useState, useEffect } from "react";
@@ -15,27 +16,12 @@ import {
 } from "lucide-react";
 
 const menuItems = [
-  {
-    title: "Dashboard",
-    icon: LayoutDashboard,
-    href: "/admin/dashboard",
-  },
-  {
-    title: "Management Warga",
-    icon: Users,
-    href: "/admin/management-warga",
-  },
-  {
-    title: "Management Tanah",
-    icon: FileText,
-    href: "/admin/management-tanah",
-  },
-  {
-    title: "Riwayat Buku Tanah",
-    icon: History,
-    href: "/admin/riwayat-buku-tanah",
-  },
+  { title: "Dashboard",          icon: LayoutDashboard, href: "/admin/dashboard" },
+  { title: "Management Warga",   icon: Users,           href: "/admin/management-warga" },
+  { title: "Management Tanah",   icon: FileText,        href: "/admin/management-tanah" },
+  { title: "Riwayat Buku Tanah", icon: History,         href: "/admin/riwayat-buku-tanah" },
 ];
+
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -43,16 +29,23 @@ export default function Sidebar() {
   const [isKepalaDesa, setIsKepalaDesa] = useState(false);
 
   useEffect(() => {
-    // Check if user is Kepala Desa
     if (typeof window !== "undefined") {
       const userStr = localStorage.getItem("user");
       if (userStr) {
         const user = JSON.parse(userStr);
-        //Support both "kepala_desa" and "kepala"
         setIsKepalaDesa(user.role === "kepala_desa" || user.role === "kepala");
       }
     }
   }, []);
+
+  // Jika kepala: urutannya Approval (atas) lalu Riwayat Buku Tanah
+    const filteredMenus = isKepalaDesa
+    ? [
+        { title: "Dashboard", icon: LayoutDashboard, href: "/admin/dashboard" },
+        { title: "Approval",  icon: CheckCircle,     href: "/admin/approval" },
+        { title: "Riwayat Buku Tanah", icon: History, href: "/admin/riwayat-buku-tanah" },
+      ]
+    : menuItems;
 
   return (
     <>
@@ -64,7 +57,6 @@ export default function Sidebar() {
         {isOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
 
-      {/* Overlay for mobile */}
       {isOpen && (
         <div
           className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
@@ -72,15 +64,10 @@ export default function Sidebar() {
         />
       )}
 
-      {/* Sidebar */}
       <aside
-        className={`
-          fixed lg:static inset-y-0 left-0 z-40
-          w-64 bg-teal-700 text-white
-          transform transition-transform duration-300 ease-in-out
-          ${isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
-          flex flex-col
-        `}
+        className={`fixed lg:static inset-y-0 left-0 z-40 w-64 bg-teal-700 text-white
+        transform transition-transform duration-300 ease-in-out
+        ${isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"} flex flex-col`}
       >
         {/* Logo */}
         <div className="p-6 flex items-center space-x-3 border-b border-teal-600">
@@ -97,27 +84,20 @@ export default function Sidebar() {
           </div>
         </div>
 
-        {/* Navigation Menu */}
+        {/* Navigation */}
         <nav className="flex-1 py-6">
           <ul className="space-y-2 px-4">
-            {menuItems.map((item) => {
+            {filteredMenus.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
-
               return (
                 <li key={item.href}>
                   <Link
                     href={item.href}
                     onClick={() => setIsOpen(false)}
-                    className={`
-                      flex items-center space-x-3 px-4 py-3 rounded-lg
-                      transition-colors duration-200
-                      ${
-                        isActive
-                          ? "bg-teal-800 text-white"
-                          : "text-teal-100 hover:bg-teal-600"
-                      }
-                    `}
+                    className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors duration-200 ${
+                      isActive ? "bg-teal-800 text-white" : "text-teal-100 hover:bg-teal-600"
+                    }`}
                   >
                     <Icon size={20} />
                     <span className="font-medium">{item.title}</span>
@@ -125,37 +105,9 @@ export default function Sidebar() {
                 </li>
               );
             })}
-
-            {/* Approval Menu - Kepala Desa Only */}
-            {isKepalaDesa && (
-              <li>
-                <Link
-                  href="/admin/approval"
-                  onClick={() => setIsOpen(false)}
-                  className={`
-                    flex items-center space-x-3 px-4 py-3 rounded-lg
-                    transition-colors duration-200
-                    ${
-                      pathname === "/admin/approval"
-                        ? "bg-teal-800 text-white"
-                        : "text-teal-100 hover:bg-teal-600"
-                    }
-                  `}
-                >
-                  <CheckCircle size={20} />
-                  <span className="font-medium">Approval</span>
-
-                  {/* Badge untuk pending count (opsional) */}
-                  <span className="ml-auto bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-1 rounded-full">
-                    5
-                  </span>
-                </Link>
-              </li>
-            )}
           </ul>
         </nav>
 
-        {/* Footer */}
         <div className="p-4 border-t border-teal-600 text-center text-sm text-teal-200">
           <p>© 2025 SIDATA DESA</p>
         </div>

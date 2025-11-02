@@ -76,6 +76,7 @@ export const API_ENDPOINTS = {
           CREATE: (tanahId) => `/staff/proposals/tanah/${tanahId}/bidang`,
           UPDATE: (id) => `/staff/proposals/bidang/${id}`,  // PUT
           DELETE: (id) => `/staff/proposals/bidang/${id}`,  // DELETE
+          SHOW: (id) => `/bidang/${id}`,
         },
       },
       WARGA: {

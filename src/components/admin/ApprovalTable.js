@@ -6,11 +6,7 @@ import { Eye, Check, X } from "lucide-react";
 
 function safeParseJSON(v) {
   if (typeof v !== "string") return v || null;
-  try {
-    return JSON.parse(v);
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(v); } catch { return null; }
 }
 
 function extractNamaNik(row) {
@@ -61,7 +57,7 @@ function getApprovalId(row) {
     row?.approval_id ??
     row?.request_id ??
     row?.proposal_id ??
-    row?.id // ← respons list kamu pakai ini
+    row?.id
   );
 }
 
@@ -76,6 +72,7 @@ export default function ApprovalTable({
   onViewDetail,
   getModuleName = (m) => m,
   getActionName = (a) => a,
+  showId = true,                 // <-- NEW: bisa matikan kolom ID
 }) {
   const rows = useMemo(() => data || [], [data]);
 
@@ -87,7 +84,9 @@ export default function ApprovalTable({
         <thead className="bg-teal-700 text-white">
           <tr>
             <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">#</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">ID PROPOSAL</th>
+            {showId && (
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">ID PROPOSAL</th>
+            )}
             <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">MODUL</th>
             <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">ID/NIK</th>
             <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">NAMA/KETERANGAN</th>
@@ -107,12 +106,17 @@ export default function ApprovalTable({
             const submittedAt = getSubmittedAt(row);
 
             return (
-              <tr key={`${approvalId}-${idx}`} className="hover:bg-gray-50 transition-colors">
-                <td className="px-4 py-3 text-sm text-gray-700">{idx + 1}</td>
-
-                <td className="px-4 py-3 text-sm text-teal-700 font-medium">
-                  #{approvalId ?? "?"}
+              <tr key={`${approvalId ?? "noid"}-${idx}`} className="hover:bg-gray-50 transition-colors">
+                {/* nomor urut: pakai _rownum kalau disediakan dari page.js */}
+                <td className="px-4 py-3 text-sm text-gray-700">
+                  {row._rownum ?? idx + 1}
                 </td>
+
+                {showId && (
+                  <td className="px-4 py-3 text-sm text-teal-700 font-medium">
+                    #{approvalId ?? "?"}
+                  </td>
+                )}
 
                 <td className="px-4 py-3 text-sm text-gray-700">
                   {getModuleName(row.module)}
@@ -144,29 +148,31 @@ export default function ApprovalTable({
                         : "bg-red-100 text-red-800"
                     }`}
                   >
-                    {status === "PENDING"
-                      ? "Pending"
-                      : status === "APPROVED"
-                      ? "Approved"
-                      : "Ditolak"}
+                    {status === "PENDING" ? "Pending" : status === "APPROVED" ? "Approved" : "Ditolak"}
                   </span>
-                    {row.apply_error && (
-                  <button
-                       onClick={() => alert(`Alasan gagal apply:\n\n${typeof row.apply_error === "string" ? row.apply_error : JSON.stringify(row.apply_error, null, 2)}`)}
-                       className="ml-2 text-xs underline text-red-700"
-                       title="Lihat alasan gagal apply dari backend"
-                     >
+                  {row.apply_error && (
+                    <button
+                      onClick={() =>
+                        alert(
+                          `Alasan gagal apply:\n\n${
+                            typeof row.apply_error === "string"
+                              ? row.apply_error
+                              : JSON.stringify(row.apply_error, null, 2)
+                          }`
+                        )
+                      }
+                      className="ml-2 text-xs underline text-red-700"
+                      title="Lihat alasan gagal apply dari backend"
+                    >
                       detail error
-                     </button>
-                   )}
+                    </button>
+                  )}
                 </td>
 
                 <td className="px-4 py-3 text-sm">
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() =>
-                        onViewDetail && onViewDetail({ ...row, approval_id: approvalId })
-                      }
+                      onClick={() => onViewDetail?.({ ...row, approval_id: approvalId })}
                       className="px-2 py-1 border rounded hover:bg-gray-50"
                       title="Detail"
                     >
@@ -174,7 +180,7 @@ export default function ApprovalTable({
                     </button>
 
                     <button
-                      onClick={() => isPending && onApprove && onApprove({ ...row, approval_id: approvalId })}
+                      onClick={() => isPending && onApprove?.({ ...row, approval_id: approvalId })}
                       className={`px-2 py-1 border rounded text-green-700 ${
                         isPending ? "hover:bg-green-50" : "opacity-50 cursor-not-allowed"
                       }`}
@@ -185,7 +191,7 @@ export default function ApprovalTable({
                     </button>
 
                     <button
-                      onClick={() => isPending && onReject && onReject({ ...row, approval_id: approvalId })}
+                      onClick={() => isPending && onReject?.({ ...row, approval_id: approvalId })}
                       className={`px-2 py-1 border rounded text-red-700 ${
                         isPending ? "hover:bg-red-50" : "opacity-50 cursor-not-allowed"
                       }`}

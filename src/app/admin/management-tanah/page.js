@@ -1,6 +1,7 @@
+// src/app/admin/management-tanah/page.js
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Search,
@@ -11,73 +12,134 @@ import {
   Calendar,
 } from "lucide-react";
 import TanahTable from "@/components/admin/TanahTable";
+import { apiGet, apiDelete } from "@/lib/api"; // ⬅️ tambah apiDelete
+import { API_ENDPOINTS } from "@/lib/config";
 
 export default function ManagementTanahPage() {
+  // UI states
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selectedMonth, setSelectedMonth] = useState("");
+  const [deletingId, setDeletingId] = useState(null); // ⬅️ id yang sedang dihapus (disable tombol)
 
-  // Mock data
-  const mockData = Array.from({ length: 50 }, (_, i) => ({
-    id: i + 1,
-    nama_pemilik: "Muhammad Vendra Hastagiyan",
-    total_luas: 120,
-    jumlah_bidang: Math.floor(Math.random() * 5) + 1,
-  }));
+  // Data states
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [pagination, setPagination] = useState({
+    current_page: 1,
+    last_page: 1,
+    total: 0,
+    per_page: 10,
+  });
 
-  const totalPages = Math.ceil(mockData.length / rowsPerPage);
-  const startIndex = (currentPage - 1) * rowsPerPage;
-  const endIndex = startIndex + rowsPerPage;
-  const currentData = mockData.slice(startIndex, endIndex);
+  // Build query string for backend
+  const queryString = useMemo(() => {
+    const qs = new URLSearchParams();
+    qs.set("page", String(currentPage));
+    qs.set("per_page", String(rowsPerPage));
+    if (searchQuery?.trim()) qs.set("q", searchQuery.trim());
+    if (selectedMonth) qs.set("month", selectedMonth);
+    return `?${qs.toString()}`;
+  }, [currentPage, rowsPerPage, searchQuery, selectedMonth]);
 
+  // Loader dipisah supaya bisa dipanggil ulang setelah delete
+  const loadList = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await apiGet(`${API_ENDPOINTS.TANAH.LIST}${queryString}`);
+      const mapped = (res?.data ?? []).map((d) => ({
+        id: d.id,
+        nama_pemilik: d.pemilik_nama ?? d?.pemilik?.nama_lengkap ?? "-",
+        total_luas: Number(d.total_luas_m2 ?? d.jumlah_m2_computed ?? 0),
+        jumlah_bidang: d.bidang_count ?? 0,
+        _raw: d,
+      }));
+
+      setRows(mapped);
+      setPagination({
+        current_page: res.current_page ?? 1,
+        last_page: res.last_page ?? 1,
+        total: res.total ?? mapped.length,
+        per_page: res.per_page ?? rowsPerPage,
+      });
+    } catch (e) {
+      setError(e?.message || "Gagal memuat data");
+      setRows([]);
+      setPagination({
+        current_page: 1,
+        last_page: 1,
+        total: 0,
+        per_page: rowsPerPage,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch list ketika query berubah
+  useEffect(() => {
+    let ignore = false;
+    (async () => {
+      if (!ignore) await loadList();
+    })();
+    return () => {
+      ignore = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryString, rowsPerPage]);
+
+  // Handlers
   const handleSearch = (e) => {
     setSearchQuery(e.target.value);
-    // TODO: Implement search functionality
+    setCurrentPage(1);
   };
 
   const handleExport = () => {
-    // TODO: Implement export to Excel
     alert("Fitur ekspor data akan segera tersedia");
   };
 
-  const handleDelete = (id) => {
-    // TODO: Implement delete functionality
-    console.log("Delete ID:", id);
+  // ⬇️ Hapus: buat proposal delete ke /api/staff/proposals/tanah/{id}
+  const handleDelete = async (id) => {
+    if (!id) return;
+    if (!confirm("Ajukan penghapusan tanah ini?")) return;
+    try {
+      setDeletingId(id);
+      await apiDelete(`/staff/proposals/tanah/${id}`); // body kosong
+      alert("Proposal hapus tanah dibuat. Menunggu persetujuan Kepala Desa.");
+      await loadList();
+    } catch (e) {
+      alert(e?.message || "Gagal mengajukan hapus tanah.");
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const handleMonthFilter = (e) => {
     setSelectedMonth(e.target.value);
-    // TODO: Implement month filter
+    setCurrentPage(1);
   };
 
+  // Render page number chips
   const renderPagination = () => {
+    const totalPages = pagination.last_page || 1;
+    const cur = pagination.current_page || 1;
     const pages = [];
 
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+      return pages;
+    }
+
     pages.push(1);
-
-    if (currentPage > 3) {
-      pages.push("...");
+    if (cur > 3) pages.push("...");
+    for (let i = Math.max(2, cur - 1); i <= Math.min(totalPages - 1, cur + 1); i++) {
+      if (!pages.includes(i)) pages.push(i);
     }
-
-    for (
-      let i = Math.max(2, currentPage - 1);
-      i <= Math.min(totalPages - 1, currentPage + 1);
-      i++
-    ) {
-      if (!pages.includes(i)) {
-        pages.push(i);
-      }
-    }
-
-    if (currentPage < totalPages - 2) {
-      pages.push("...");
-    }
-
-    if (totalPages > 1 && !pages.includes(totalPages)) {
-      pages.push(totalPages);
-    }
-
+    if (cur < totalPages - 2) pages.push("...");
+    pages.push(totalPages);
     return pages;
   };
 
@@ -97,20 +159,21 @@ export default function ManagementTanahPage() {
     { value: "12", label: "Desember" },
   ];
 
+  const totalPages = pagination.last_page || 1;
+
   return (
     <div className="space-y-6">
       {/* Title Section */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex justify-between items-center">
           <div>
-            <h2 className="text-xl font-semibold text-gray-800">
-              Data Tanah Desa
-            </h2>
+            <h2 className="text-xl font-semibold text-gray-800">Data Tanah Desa</h2>
             {selectedMonth && (
               <p className="text-sm text-gray-500 mt-1">
                 Bulan: {months.find((m) => m.value === selectedMonth)?.label}
               </p>
             )}
+            {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
           </div>
 
           {/* Month Filter */}
@@ -136,10 +199,7 @@ export default function ManagementTanahPage() {
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           {/* Search */}
           <div className="relative w-full md:w-96">
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-              size={20}
-            />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
             <input
               type="text"
               placeholder="search"
@@ -171,7 +231,18 @@ export default function ManagementTanahPage() {
       </div>
 
       {/* Table */}
-      <TanahTable data={currentData} onDelete={handleDelete} />
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        {loading ? (
+          <div className="p-6 text-sm text-gray-500">Memuat data…</div>
+        ) : (
+          <TanahTable
+            data={rows}
+            onDelete={handleDelete}
+            deletingId={deletingId} 
+            showIdColumn={false}// ⬅️ opsional: kalau TanahTable mau disable tombol per baris
+          />
+        )}
+      </div>
 
       {/* Pagination */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
@@ -197,38 +268,33 @@ export default function ManagementTanahPage() {
           {/* Page Numbers */}
           <div className="flex items-center space-x-1">
             <button
-              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={pagination.current_page <= 1}
               className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ChevronLeft size={18} />
             </button>
 
-            {renderPagination().map((page, index) => (
+            {renderPagination().map((page, idx) => (
               <button
-                key={index}
+                key={`${page}-${idx}`}
                 onClick={() => typeof page === "number" && setCurrentPage(page)}
                 disabled={page === "..."}
-                className={`
-                  px-3 py-1 rounded text-sm
-                  ${
-                    page === currentPage
-                      ? "bg-teal-700 text-white"
-                      : page === "..."
-                      ? "cursor-default"
-                      : "hover:bg-gray-100"
-                  }
-                `}
+                className={`px-3 py-1 rounded text-sm ${
+                  page === pagination.current_page
+                    ? "bg-teal-700 text-white"
+                    : page === "..."
+                    ? "cursor-default"
+                    : "hover:bg-gray-100"
+                }`}
               >
                 {page}
               </button>
             ))}
 
             <button
-              onClick={() =>
-                setCurrentPage(Math.min(totalPages, currentPage + 1))
-              }
-              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={pagination.current_page >= totalPages}
               className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ChevronRight size={18} />
