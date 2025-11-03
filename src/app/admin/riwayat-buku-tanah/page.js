@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Search,
   Download,
@@ -10,75 +10,125 @@ import {
   Plus,
   Pencil,
   Trash,
+  Layers,
 } from "lucide-react";
 import RiwayatTable from "@/components/admin/RiwayatTable";
+import { useAudit } from "@/hooks/useAudit";
 
 export default function RiwayatBukuTanahPage() {
+  // UI state
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [selectedMonth, setSelectedMonth] = useState("09"); // September
-  const [selectedJenis, setSelectedJenis] = useState(""); // Filter jenis perubahan
+  const [rowsPerPage, setRowsPerPage] = useState(12);
+  const [selectedMonth, setSelectedMonth] = useState("");   // "01".."12" | ""
+  const [selectedYear, setSelectedYear] = useState(         // ← NEW: kirim bareng month
+    String(new Date().getFullYear())
+  );
+  const [selectedJenis, setSelectedJenis] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState("");
+  const [selectedModule, setSelectedModule] = useState(""); // warga|tanah|bidang|""
 
-  // Mock data
-  const mockData = Array.from({ length: 50 }, (_, i) => ({
-    id: i + 1,
-    nama: "Muhammad Vendra Hastagiyan",
-    tanggal: "2 September 2025 || 14:58:01",
-    jenis_perubahan: ["Tambah", "Edit", "Hapus"][i % 3],
-  }));
+  const { loading, error, result, fetchAudit } = useAudit();
 
-  const totalPages = Math.ceil(mockData.length / rowsPerPage);
-  const startIndex = (currentPage - 1) * rowsPerPage;
-  const endIndex = startIndex + rowsPerPage;
-  const currentData = mockData.slice(startIndex, endIndex);
+  const actionMap = {
+    "": "",
+    Tambah: "create",
+    Edit: "update",
+    Hapus: "delete",
+  };
 
-  // Calculate stats
-  const countTambah = mockData.filter(
-    (d) => d.jenis_perubahan === "Tambah"
-  ).length;
-  const countEdit = mockData.filter((d) => d.jenis_perubahan === "Edit").length;
-  const countHapus = mockData.filter(
-    (d) => d.jenis_perubahan === "Hapus"
-  ).length;
+  // Fetch ke API setiap filter berubah
+  useEffect(() => {
+    const action = actionMap[selectedJenis] || "";
 
+    const filters = {
+      q: searchQuery || "",
+      action,
+      status: selectedStatus || "",
+      module: selectedModule || "",
+    };
+
+    // Kirim month+year hanya bila month dipilih
+    if (selectedMonth) {
+      filters.month = selectedMonth;
+      filters.year = selectedYear; // penting
+    }
+
+    fetchAudit({ page: currentPage, perPage: rowsPerPage, filters }).catch(() => {});
+  }, [
+    searchQuery,
+    selectedMonth,
+    selectedYear,  // ← NEW
+    selectedJenis,
+    selectedStatus,
+    selectedModule,
+    currentPage,
+    rowsPerPage,
+  ]); // eslint-disable-line
+
+  const countTambah = result?.stats?.by_action?.create ?? 0;
+  const countEdit   = result?.stats?.by_action?.update ?? 0;
+  const countHapus  = result?.stats?.by_action?.delete ?? 0;
+  const totalItems  = result?.pagination?.total ?? 0;
+  const totalPages  = result?.pagination?.last_page ?? 1;
+
+  // Data untuk tabel (tambah column module)
+  const tableData = useMemo(() => {
+    const items = result?.data ?? [];
+    return items.map((it) => ({
+      id: it.id,
+      module: it.module,
+      nama: it.submitted_by?.name ?? "-",
+      tanggal: new Date(it.submitted_at).toLocaleString("id-ID", {
+        dateStyle: "long",
+        timeStyle: "medium",
+      }),
+      jenis_perubahan: it.jenis_perubahan,
+      _raw: it,
+    }));
+  }, [result]);
+
+  // Handlers
   const handleSearch = (e) => {
     setSearchQuery(e.target.value);
-    // TODO: Implement search functionality
+    setCurrentPage(1);
   };
-
   const handleExport = () => {
-    // TODO: Implement export to Excel
     alert("Fitur ekspor riwayat akan segera tersedia");
   };
-
   const handleDelete = (id) => {
-    // TODO: Implement delete functionality
     console.log("Delete ID:", id);
   };
-
   const handleMonthFilter = (e) => {
     setSelectedMonth(e.target.value);
-    // TODO: Implement month filter
+    setCurrentPage(1);
   };
-
+  const handleYearFilter = (e) => {   // ← NEW
+    setSelectedYear(e.target.value);
+    setCurrentPage(1);
+  };
   const handleJenisFilter = (e) => {
     setSelectedJenis(e.target.value);
-    // TODO: Implement jenis filter
+    setCurrentPage(1);
+  };
+  const handleStatusFilter = (e) => {
+    setSelectedStatus(e.target.value);
+    setCurrentPage(1);
+  };
+  const handleModuleFilter = (e) => {
+    setSelectedModule(e.target.value);
+    setCurrentPage(1);
   };
 
   const renderPagination = () => {
     const pages = [];
+    const cp = currentPage;
     pages.push(1);
-    if (currentPage > 3) pages.push("...");
-    for (
-      let i = Math.max(2, currentPage - 1);
-      i <= Math.min(totalPages - 1, currentPage + 1);
-      i++
-    ) {
+    if (cp > 3) pages.push("...");
+    for (let i = Math.max(2, cp - 1); i <= Math.min(totalPages - 1, cp + 1); i++) {
       if (!pages.includes(i)) pages.push(i);
     }
-    if (currentPage < totalPages - 2) pages.push("...");
+    if (cp < totalPages - 2) pages.push("...");
     if (totalPages > 1 && !pages.includes(totalPages)) pages.push(totalPages);
     return pages;
   };
@@ -99,9 +149,13 @@ export default function RiwayatBukuTanahPage() {
     { value: "12", label: "Desember" },
   ];
 
+  // Tahun: range (currentYear-3 .. currentYear+1)
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 5 }, (_, i) => currentYear - 3 + i);
+
   return (
     <div className="space-y-6">
-      {/* Stats Cards */}
+      {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between">
@@ -140,49 +194,92 @@ export default function RiwayatBukuTanahPage() {
         </div>
       </div>
 
-      {/* Title Section with Info */}
+      {/* Title & Filters */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h2 className="text-xl font-semibold text-gray-800 mb-2">
-              Riwayat
-            </h2>
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">Riwayat</h2>
             <p className="text-sm text-gray-600">
-              *Total {mockData.length} perubahan pada bulan{" "}
-              {months.find((m) => m.value === selectedMonth)?.label || "Semua"}{" "}
-              ({countTambah} Tambah, {countEdit} Edit, {countHapus} Hapus)
+              *Total {totalItems} perubahan ({countTambah} Tambah, {countEdit} Edit, {countHapus} Hapus)
             </p>
+            {error && <p className="text-sm text-red-600 mt-1">Error: {error}</p>}
           </div>
 
-          {/* Filters */}
-          <div className="flex flex-wrap gap-3">
-            {/* Month Filter */}
-            <div className="flex items-center space-x-2 min-w-[180px]">
+          <div className="flex flex-wrap gap-3 w-full md:w-auto">
+            {/* Month + Year */}
+            <div className="flex items-center gap-2 min-w-[180px]">
               <Calendar size={20} className="text-gray-500" />
               <select
                 value={selectedMonth}
                 onChange={handleMonthFilter}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm"
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm"
+                disabled={loading}
+                title="Bulan"
               >
-                {months.map((month) => (
-                  <option key={month.value} value={month.value}>
-                    {month.label}
+                {months.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+
+              {/* Tahun hanya aktif saat bulan dipilih */}
+              <select
+                value={selectedYear}
+                onChange={handleYearFilter}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm disabled:bg-gray-100"
+                disabled={loading || !selectedMonth}
+                title="Tahun"
+              >
+                {years.map((y) => (
+                  <option key={y} value={String(y)}>
+                    {y}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* Jenis Filter */}
+            {/* Jenis */}
             <select
               value={selectedJenis}
               onChange={handleJenisFilter}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm"
+              disabled={loading}
             >
               <option value="">Semua Jenis</option>
               <option value="Tambah">Tambah</option>
               <option value="Edit">Edit</option>
               <option value="Hapus">Hapus</option>
             </select>
+
+            {/* Status */}
+            <select
+              value={selectedStatus}
+              onChange={handleStatusFilter}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm"
+              disabled={loading}
+            >
+              <option value="">Semua Status</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+              <option value="pending">Pending</option>
+            </select>
+
+            {/* Modul */}
+            <div className="flex items-center gap-2">
+              <Layers size={20} className="text-gray-500" />
+              <select
+                value={selectedModule}
+                onChange={handleModuleFilter}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm"
+                disabled={loading}
+              >
+                <option value="">Semua Jenis Data</option>
+                <option value="warga">Warga</option>
+                <option value="tanah">Tanah</option>
+                <option value="bidang">Bidang</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
@@ -190,25 +287,22 @@ export default function RiwayatBukuTanahPage() {
       {/* Action Bar */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-          {/* Search */}
           <div className="relative w-full md:w-96">
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-              size={20}
-            />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
             <input
               type="text"
               placeholder="search"
               value={searchQuery}
               onChange={handleSearch}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              disabled={loading}
             />
           </div>
 
-          {/* Export Button */}
           <button
             onClick={handleExport}
             className="flex items-center justify-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors w-full md:w-auto"
+            disabled={loading}
           >
             <Download size={18} />
             <span>Ekspor Riwayat</span>
@@ -217,12 +311,11 @@ export default function RiwayatBukuTanahPage() {
       </div>
 
       {/* Table */}
-      <RiwayatTable data={currentData} onDelete={handleDelete} />
+      <RiwayatTable data={tableData} loading={loading} />
 
       {/* Pagination */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-          {/* Rows per page */}
           <div className="flex items-center space-x-2">
             <span className="text-sm text-gray-600">Show:</span>
             <select
@@ -232,49 +325,44 @@ export default function RiwayatBukuTanahPage() {
                 setCurrentPage(1);
               }}
               className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              disabled={loading}
             >
-              <option value={10}>10 rows</option>
+              <option value={12}>12 rows</option>
               <option value={25}>25 rows</option>
               <option value={50}>50 rows</option>
               <option value={100}>100 rows</option>
             </select>
           </div>
 
-          {/* Page Numbers */}
           <div className="flex items-center space-x-1">
             <button
-              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={loading || currentPage === 1}
               className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ChevronLeft size={18} />
             </button>
 
-            {renderPagination().map((page, index) => (
+            {renderPagination().map((page, idx) => (
               <button
-                key={index}
+                key={idx}
                 onClick={() => typeof page === "number" && setCurrentPage(page)}
-                disabled={page === "..."}
-                className={`
-                  px-3 py-1 rounded text-sm
-                  ${
-                    page === currentPage
-                      ? "bg-teal-700 text-white"
-                      : page === "..."
-                      ? "cursor-default"
-                      : "hover:bg-gray-100"
-                  }
-                `}
+                disabled={loading || page === "..."}
+                className={`px-3 py-1 rounded text-sm ${
+                  page === currentPage
+                    ? "bg-teal-700 text-white"
+                    : page === "..."
+                    ? "cursor-default"
+                    : "hover:bg-gray-100"
+                }`}
               >
                 {page}
               </button>
             ))}
 
             <button
-              onClick={() =>
-                setCurrentPage(Math.min(totalPages, currentPage + 1))
-              }
-              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={loading || currentPage === totalPages}
               className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ChevronRight size={18} />
@@ -283,7 +371,7 @@ export default function RiwayatBukuTanahPage() {
         </div>
       </div>
 
-      {/* Button Kembali */}
+      {/* Back */}
       <div className="flex justify-end">
         <button
           onClick={() => window.history.back()}

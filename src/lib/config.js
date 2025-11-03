@@ -57,6 +57,7 @@ export const API_ENDPOINTS = {
     SHOW: (id) => `/kepala/approvals/${id}`,
     APPROVE: (id) => `/kepala/approvals/${id}/approve`,
     REJECT: (id) => `/kepala/approvals/${id}/reject`,
+    AUDIT: "/kepala/approvals/audit", 
   },
 
   // Audit

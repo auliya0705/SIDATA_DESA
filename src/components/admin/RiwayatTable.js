@@ -1,65 +1,16 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
-import { MoreVertical, Eye, Trash2 } from "lucide-react";
+import { Eye } from "lucide-react";
 
-export default function RiwayatTable({ data = [], onDelete }) {
-  const [showActionMenu, setShowActionMenu] = useState(null);
-
-  // Mock data
+export default function RiwayatTable({ data = [], loading = false }) {
   const riwayatData =
     data.length > 0
       ? data
       : [
-          {
-            id: 1,
-            nama: "Muhammad Vendra Hastagiyan",
-            tanggal: "2 September 2025 || 14:58:01",
-            jenis_perubahan: "Tambah",
-          },
-          {
-            id: 5,
-            nama: "Muhammad Vendra Hastagiyan",
-            tanggal: "2 September 2025 || 14:58:01",
-            jenis_perubahan: "Edit",
-          },
-          {
-            id: 6,
-            nama: "Muhammad Vendra Hastagiyan",
-            tanggal: "2 September 2025 || 14:58:01",
-            jenis_perubahan: "Edit",
-          },
-          {
-            id: 7,
-            nama: "Muhammad Vendra Hastagiyan",
-            tanggal: "2 September 2025 || 14:58:01",
-            jenis_perubahan: "Edit",
-          },
-          {
-            id: 10,
-            nama: "Muhammad Vendra Hastagiyan",
-            tanggal: "2 September 2025 || 14:58:01",
-            jenis_perubahan: "Tambah",
-          },
-          {
-            id: 11,
-            nama: "Muhammad Vendra Hastagiyan",
-            tanggal: "2 September 2025 || 14:58:01",
-            jenis_perubahan: "Tambah",
-          },
-          {
-            id: 12,
-            nama: "Muhammad Vendra Hastagiyan",
-            tanggal: "2 September 2025 || 14:58:01",
-            jenis_perubahan: "Hapus",
-          },
-          {
-            id: 13,
-            nama: "Muhammad Vendra Hastagiyan",
-            tanggal: "2 September 2025 || 14:58:01",
-            jenis_perubahan: "Edit",
-          },
+          // contoh mock (opsional)
+          { id: 1, module: "warga", nama: "Sekretaris Desa", tanggal: "2 September 2025 || 14:58:01", jenis_perubahan: "Tambah" },
+          { id: 5, module: "tanah",  nama: "Sekretaris Desa", tanggal: "2 September 2025 || 14:58:01", jenis_perubahan: "Edit" },
         ];
 
   const getJenisBadgeColor = (jenis) => {
@@ -75,40 +26,35 @@ export default function RiwayatTable({ data = [], onDelete }) {
     }
   };
 
+  const labelModule = (m) => {
+    const x = (m || "").toLowerCase();
+    if (x === "warga") return "Warga";
+    if (x === "tanah") return "Tanah";
+    if (x === "bidang") return "Bidang";
+    return "-";
+  };
+
   return (
     <div className="overflow-x-auto bg-white rounded-lg shadow">
       <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-teal-700 text-white">
           <tr>
-            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">
-              #
-            </th>
-            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">
-              ID
-            </th>
-            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">
-              Nama
-            </th>
-            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">
-              Tanggal & Waktu
-            </th>
-            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">
-              Jenis Perubahan
-            </th>
-            <th className="px-6 py-4 text-left text-xs font-semibold uppercase"></th>
+            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">#</th>
+            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">Jenis Data</th>
+            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">Nama</th>
+            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">Tanggal & Waktu</th>
+            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">Jenis Perubahan</th>
+            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">Aksi</th>
           </tr>
         </thead>
+
         <tbody className="bg-white divide-y divide-gray-200">
           {riwayatData.map((riwayat, index) => (
             <tr key={riwayat.id} className="hover:bg-gray-50">
               <td className="px-6 py-4 text-sm text-gray-700">{index + 1}</td>
-              <td className="px-6 py-4 text-sm text-gray-700">{riwayat.id}</td>
-              <td className="px-6 py-4 text-sm text-gray-900 font-medium">
-                {riwayat.nama}
-              </td>
-              <td className="px-6 py-4 text-sm text-gray-700">
-                {riwayat.tanggal}
-              </td>
+              <td className="px-6 py-4 text-sm text-gray-700">{labelModule(riwayat.module)}</td>
+              <td className="px-6 py-4 text-sm text-gray-900 font-medium">{riwayat.nama}</td>
+              <td className="px-6 py-4 text-sm text-gray-700">{riwayat.tanggal}</td>
               <td className="px-6 py-4 text-sm">
                 <span
                   className={`px-3 py-1 rounded-full text-xs font-semibold ${getJenisBadgeColor(
@@ -118,47 +64,27 @@ export default function RiwayatTable({ data = [], onDelete }) {
                   {riwayat.jenis_perubahan}
                 </span>
               </td>
-              <td className="px-6 py-4 text-sm text-gray-700 relative">
-                <button
-                  onClick={() =>
-                    setShowActionMenu(
-                      showActionMenu === riwayat.id ? null : riwayat.id
-                    )
-                  }
-                  className="p-1 hover:bg-gray-100 rounded"
-                >
-                  <MoreVertical size={18} />
-                </button>
 
-                {/* Action Menu Dropdown */}
-                {showActionMenu === riwayat.id && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
-                    <Link
-                      href={`/admin/riwayat-buku-tanah/detail/${riwayat.id}`}
-                      className="flex items-center space-x-2 px-4 py-2 hover:bg-gray-50 text-gray-700"
-                    >
-                      <Eye size={16} />
-                      <span>Lihat Detail</span>
-                    </Link>
-                    {riwayat.jenis_perubahan !== "Hapus" && (
-                      <button
-                        onClick={() => {
-                          if (confirm("Yakin ingin menghapus riwayat ini?")) {
-                            onDelete && onDelete(riwayat.id);
-                          }
-                          setShowActionMenu(null);
-                        }}
-                        className="w-full flex items-center space-x-2 px-4 py-2 hover:bg-red-50 text-red-600"
-                      >
-                        <Trash2 size={16} />
-                        <span>Hapus Riwayat</span>
-                      </button>
-                    )}
-                  </div>
-                )}
+              {/* Aksi: hanya tombol Lihat Detail (ikon mata) */}
+              <td className="px-6 py-4 text-sm text-gray-700">
+                <Link
+                  href={`/admin/riwayat-buku-tanah/detail/${riwayat.id}`}
+                  className="inline-flex items-center space-x-2 px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  <Eye size={16} />
+                  <span>Lihat</span>
+                </Link>
               </td>
             </tr>
           ))}
+
+          {(!riwayatData || riwayatData.length === 0) && !loading && (
+            <tr>
+              <td className="px-6 py-6 text-center text-sm text-gray-500" colSpan={6}>
+                Tidak ada data.
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
