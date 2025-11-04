@@ -30,6 +30,8 @@ export default function AdminLayout({ children }) {
     }
   }, [router]);
 
+  
+
   // Show loading while checking auth
   if (isChecking) {
     return (

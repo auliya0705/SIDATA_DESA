@@ -69,6 +69,8 @@ export const API_ENDPOINTS = {
   // 🔹 Staff — endpoints proposal (sesuai routes di Laravel)
   STAFF: {
     PROPOSALS: {
+      MY: "/staff/proposals/my",
+      SHOW: (id) => `/staff/proposals/${id}`,
       TANAH: {
         CREATE: "/staff/proposals/tanah",
         UPDATE: (id) => `/staff/proposals/tanah/${id}`,     // PATCH (atau POST + _method=PATCH)

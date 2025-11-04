@@ -1,4 +1,3 @@
-// src/components/layout/Sidebar.js
 "use client";
 
 import { useState, useEffect } from "react";
@@ -15,14 +14,6 @@ import {
   CheckCircle,
 } from "lucide-react";
 
-const menuItems = [
-  { title: "Dashboard",          icon: LayoutDashboard, href: "/admin/dashboard" },
-  { title: "Management Warga",   icon: Users,           href: "/admin/management-warga" },
-  { title: "Management Tanah",   icon: FileText,        href: "/admin/management-tanah" },
-  { title: "Riwayat Buku Tanah", icon: History,         href: "/admin/riwayat-buku-tanah" },
-];
-
-
 export default function Sidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
@@ -38,14 +29,22 @@ export default function Sidebar() {
     }
   }, []);
 
-  // Jika kepala: urutannya Approval (atas) lalu Riwayat Buku Tanah
-    const filteredMenus = isKepalaDesa
-    ? [
-        { title: "Dashboard", icon: LayoutDashboard, href: "/admin/dashboard" },
-        { title: "Approval",  icon: CheckCircle,     href: "/admin/approval" },
-        { title: "Riwayat Buku Tanah", icon: History, href: "/admin/riwayat-buku-tanah" },
-      ]
-    : menuItems;
+  // Menu untuk Kepala Desa
+  const menusKepala = [
+    { title: "Dashboard",          icon: LayoutDashboard, href: "/admin/dashboard" },
+    { title: "Approval",           icon: CheckCircle,     href: "/admin/approval" },
+    { title: "Riwayat Buku Tanah", icon: History,         href: "/admin/riwayat-buku-tanah" },
+  ];
+
+  // Menu untuk Staf: TIDAK ada “Riwayat Buku Tanah”, diganti “Riwayat Proposal”
+  const menusStaff = [
+    { title: "Dashboard",        icon: LayoutDashboard, href: "/admin/dashboard" },
+    { title: "Management Warga", icon: Users,           href: "/admin/management-warga" },
+    { title: "Management Tanah", icon: FileText,        href: "/admin/management-tanah" },
+    { title: "Riwayat Proposal", icon: History,         href: "/admin/riwayat-proposal" }, // NEW
+  ];
+
+  const filteredMenus = isKepalaDesa ? menusKepala : menusStaff;
 
   return (
     <>
