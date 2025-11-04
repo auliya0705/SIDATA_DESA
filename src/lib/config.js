@@ -23,7 +23,7 @@ export const API_ENDPOINTS = {
     CHECK: "/cek-login",
     PROFILE: "/profile",
   },
-
+  DASHBOARD: "/dashboard",
   // Tanah (read-only publik/admin)
   TANAH: {
     LIST: "/tanah",
