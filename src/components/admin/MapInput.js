@@ -10,10 +10,10 @@ import {
 } from "react-leaflet";
 import { Trash2, Save, RotateCcw } from "lucide-react";
 import "leaflet/dist/leaflet.css";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import AlertDialog from "@/components/ui/AlertDialog";
 
 // Pongangan boundary coordinates (EXACT from OSM - 302 points)
-// Pongangan boundary coordinates (EXACT from OSM)
-// Total points: 302
 const PONGANGAN_BOUNDARY = [
   [-7.0476196, 110.35987],
   [-7.0482884, 110.3598041],
@@ -341,6 +341,18 @@ export default function MapInput({
   const [saved, setSaved] = useState(false);
   const mapRef = useRef();
 
+  // Dialog states
+  const [dialogs, setDialogs] = useState({
+    redrawConfirm: false,
+    clearConfirm: false,
+    resetConfirm: false,
+    minPointsAlert: false,
+  });
+
+  const closeDialog = (dialogName) => {
+    setDialogs({ ...dialogs, [dialogName]: false });
+  };
+
   // Load initial coordinates if provided
   useEffect(() => {
     if (
@@ -348,7 +360,6 @@ export default function MapInput({
       Array.isArray(initialCoordinates) &&
       initialCoordinates.length > 0
     ) {
-      // Assume initialCoordinates is [[lat, lng], ...]
       setPoints(initialCoordinates);
       setSaved(true);
     }
@@ -359,14 +370,15 @@ export default function MapInput({
     setSaved(false);
   };
 
-  const handleStartDrawing = () => {
+  const handleStartDrawingClick = () => {
     if (points.length > 0) {
-      if (
-        !confirm("Menggambar polygon baru akan menghapus yang lama. Lanjutkan?")
-      ) {
-        return;
-      }
+      setDialogs({ ...dialogs, redrawConfirm: true });
+    } else {
+      handleStartDrawing();
     }
+  };
+
+  const handleStartDrawing = () => {
     setPoints([]);
     setIsDrawing(true);
     setSaved(false);
@@ -374,7 +386,7 @@ export default function MapInput({
 
   const handleFinishDrawing = () => {
     if (points.length < 3) {
-      alert("Polygon harus memiliki minimal 3 titik!");
+      setDialogs({ ...dialogs, minPointsAlert: true });
       return;
     }
     setIsDrawing(false);
@@ -382,15 +394,14 @@ export default function MapInput({
 
   const handleSave = () => {
     if (points.length < 3) {
-      alert("Polygon harus memiliki minimal 3 titik!");
+      setDialogs({ ...dialogs, minPointsAlert: true });
       return;
     }
 
-    // Convert to GeoJSON format: [[[lng, lat], ...]]
-    // Leaflet uses [lat, lng], but GeoJSON uses [lng, lat]
+    // Convert to GeoJSON format
     const geoJsonCoordinates = points.map(([lat, lng]) => [lng, lat]);
 
-    // Close the ring (first point === last point)
+    // Close the ring
     if (
       geoJsonCoordinates[0][0] !==
         geoJsonCoordinates[geoJsonCoordinates.length - 1][0] ||
@@ -410,28 +421,31 @@ export default function MapInput({
     setIsDrawing(false);
   };
 
+  const handleClearClick = () => {
+    setDialogs({ ...dialogs, clearConfirm: true });
+  };
+
   const handleClear = () => {
-    if (confirm("Yakin ingin menghapus polygon?")) {
-      setPoints([]);
-      setIsDrawing(false);
-      setSaved(false);
-    }
+    setPoints([]);
+    setIsDrawing(false);
+    setSaved(false);
+  };
+
+  const handleResetClick = () => {
+    setDialogs({ ...dialogs, resetConfirm: true });
   };
 
   const handleReset = () => {
-    if (confirm("Yakin ingin reset ke koordinat awal?")) {
-      if (initialCoordinates) {
-        setPoints(initialCoordinates);
-        setSaved(true);
-      } else {
-        setPoints([]);
-        setSaved(false);
-      }
-      setIsDrawing(false);
+    if (initialCoordinates) {
+      setPoints(initialCoordinates);
+      setSaved(true);
+    } else {
+      setPoints([]);
+      setSaved(false);
     }
+    setIsDrawing(false);
   };
 
-  // Default center (Desa Pongangan, Gunungpati, Semarang)
   const defaultCenter = [-7.04932, 110.369085];
 
   return (
@@ -441,7 +455,7 @@ export default function MapInput({
         {!isDrawing ? (
           <button
             type="button"
-            onClick={handleStartDrawing}
+            onClick={handleStartDrawingClick}
             className="px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 transition-colors text-sm font-medium"
           >
             {points.length > 0 ? "Gambar Ulang Polygon" : "Mulai Menggambar"}
@@ -478,7 +492,7 @@ export default function MapInput({
             {initialCoordinates && (
               <button
                 type="button"
-                onClick={handleReset}
+                onClick={handleResetClick}
                 className="flex items-center space-x-2 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors text-sm font-medium"
               >
                 <RotateCcw size={16} />
@@ -488,7 +502,7 @@ export default function MapInput({
 
             <button
               type="button"
-              onClick={handleClear}
+              onClick={handleClearClick}
               className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
             >
               <Trash2 size={16} />
@@ -539,7 +553,7 @@ export default function MapInput({
 
           <MapClickHandler isDrawing={isDrawing} onAddPoint={handleAddPoint} />
 
-          {/* Boundary Desa Pongangan (Background - RED EXACT) */}
+          {/* Boundary Desa Pongangan */}
           <Polygon
             positions={PONGANGAN_BOUNDARY}
             pathOptions={{
@@ -597,6 +611,57 @@ export default function MapInput({
           </div>
         </div>
       )}
+
+      {/* Dialogs */}
+      <ConfirmDialog
+        isOpen={dialogs.redrawConfirm}
+        onClose={() => closeDialog("redrawConfirm")}
+        onConfirm={() => {
+          closeDialog("redrawConfirm");
+          handleStartDrawing();
+        }}
+        title="Gambar Ulang Polygon?"
+        message="Menggambar polygon baru akan menghapus yang lama. Lanjutkan?"
+        confirmText="Ya, Gambar Ulang"
+        cancelText="Batal"
+        type="warning"
+      />
+
+      <ConfirmDialog
+        isOpen={dialogs.clearConfirm}
+        onClose={() => closeDialog("clearConfirm")}
+        onConfirm={() => {
+          closeDialog("clearConfirm");
+          handleClear();
+        }}
+        title="Hapus Polygon?"
+        message="Yakin ingin menghapus polygon? Semua titik akan hilang."
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        type="danger"
+      />
+
+      <ConfirmDialog
+        isOpen={dialogs.resetConfirm}
+        onClose={() => closeDialog("resetConfirm")}
+        onConfirm={() => {
+          closeDialog("resetConfirm");
+          handleReset();
+        }}
+        title="Reset Koordinat?"
+        message="Yakin ingin reset ke koordinat awal? Perubahan yang belum disimpan akan hilang."
+        confirmText="Ya, Reset"
+        cancelText="Batal"
+        type="warning"
+      />
+
+      <AlertDialog
+        isOpen={dialogs.minPointsAlert}
+        onClose={() => closeDialog("minPointsAlert")}
+        title="Polygon Belum Lengkap"
+        message="Polygon harus memiliki minimal 3 titik untuk dapat disimpan."
+        type="warning"
+      />
     </div>
   );
 }

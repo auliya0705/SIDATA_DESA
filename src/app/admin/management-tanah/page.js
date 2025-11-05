@@ -12,8 +12,10 @@ import {
   Calendar,
 } from "lucide-react";
 import TanahTable from "@/components/admin/TanahTable";
-import { apiGet, apiDelete } from "@/lib/api"; // ⬅️ tambah apiDelete
+import { apiGet, apiDelete } from "@/lib/api";
 import { API_ENDPOINTS } from "@/lib/config";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import AlertDialog from "@/components/ui/AlertDialog";
 
 export default function ManagementTanahPage() {
   // UI states
@@ -21,7 +23,7 @@ export default function ManagementTanahPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selectedMonth, setSelectedMonth] = useState("");
-  const [deletingId, setDeletingId] = useState(null); // ⬅️ id yang sedang dihapus (disable tombol)
+  const [deletingId, setDeletingId] = useState(null);
 
   // Data states
   const [rows, setRows] = useState([]);
@@ -34,6 +36,20 @@ export default function ManagementTanahPage() {
     per_page: 10,
   });
 
+  // Dialog states
+  const [dialogs, setDialogs] = useState({
+    deleteConfirm: false,
+    deleteSuccess: false,
+    deleteError: false,
+    exportInfo: false,
+  });
+  const [dialogMessage, setDialogMessage] = useState("");
+  const [pendingDelete, setPendingDelete] = useState({ id: null, name: "" });
+
+  const closeDialog = (dialogName) => {
+    setDialogs({ ...dialogs, [dialogName]: false });
+  };
+
   // Build query string for backend
   const queryString = useMemo(() => {
     const qs = new URLSearchParams();
@@ -44,7 +60,7 @@ export default function ManagementTanahPage() {
     return `?${qs.toString()}`;
   }, [currentPage, rowsPerPage, searchQuery, selectedMonth]);
 
-  // Loader dipisah supaya bisa dipanggil ulang setelah delete
+  // Loader
   const loadList = async () => {
     setLoading(true);
     setError("");
@@ -79,7 +95,7 @@ export default function ManagementTanahPage() {
     }
   };
 
-  // Fetch list ketika query berubah
+  // Fetch list when query changes
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -98,22 +114,41 @@ export default function ManagementTanahPage() {
   };
 
   const handleExport = () => {
-    alert("Fitur ekspor data akan segera tersedia");
+    setDialogMessage("Fitur ekspor data akan segera tersedia");
+    setDialogs({ ...dialogs, exportInfo: true });
   };
 
-  // ⬇️ Hapus: buat proposal delete ke /api/staff/proposals/tanah/{id}
-  const handleDelete = async (id) => {
+  const handleDeleteClick = (id) => {
     if (!id) return;
-    if (!confirm("Ajukan penghapusan tanah ini?")) return;
+    const row = rows.find((r) => r.id === id);
+    setPendingDelete({
+      id,
+      name: row?.nama_pemilik || "tanah ini",
+    });
+    setDialogs({ ...dialogs, deleteConfirm: true });
+  };
+
+  const handleDelete = async () => {
+    if (!pendingDelete.id) return;
+
     try {
-      setDeletingId(id);
-      await apiDelete(`/staff/proposals/tanah/${id}`); // body kosong
-      alert("Proposal hapus tanah dibuat. Menunggu persetujuan Kepala Desa.");
+      setDeletingId(pendingDelete.id);
+      closeDialog("deleteConfirm");
+
+      await apiDelete(`/staff/proposals/tanah/${pendingDelete.id}`);
+
+      setDialogMessage(
+        "Proposal hapus tanah berhasil dibuat. Menunggu persetujuan Kepala Desa."
+      );
+      setDialogs({ ...dialogs, deleteSuccess: true });
+
       await loadList();
     } catch (e) {
-      alert(e?.message || "Gagal mengajukan hapus tanah.");
+      setDialogMessage(e?.message || "Gagal mengajukan hapus tanah.");
+      setDialogs({ ...dialogs, deleteError: true });
     } finally {
       setDeletingId(null);
+      setPendingDelete({ id: null, name: "" });
     }
   };
 
@@ -135,7 +170,11 @@ export default function ManagementTanahPage() {
 
     pages.push(1);
     if (cur > 3) pages.push("...");
-    for (let i = Math.max(2, cur - 1); i <= Math.min(totalPages - 1, cur + 1); i++) {
+    for (
+      let i = Math.max(2, cur - 1);
+      i <= Math.min(totalPages - 1, cur + 1);
+      i++
+    ) {
       if (!pages.includes(i)) pages.push(i);
     }
     if (cur < totalPages - 2) pages.push("...");
@@ -167,7 +206,9 @@ export default function ManagementTanahPage() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex justify-between items-center">
           <div>
-            <h2 className="text-xl font-semibold text-gray-800">Data Tanah Desa</h2>
+            <h2 className="text-xl font-semibold text-gray-800">
+              Data Tanah Desa
+            </h2>
             {selectedMonth && (
               <p className="text-sm text-gray-500 mt-1">
                 Bulan: {months.find((m) => m.value === selectedMonth)?.label}
@@ -199,7 +240,10 @@ export default function ManagementTanahPage() {
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           {/* Search */}
           <div className="relative w-full md:w-96">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              size={20}
+            />
             <input
               type="text"
               placeholder="search"
@@ -237,9 +281,9 @@ export default function ManagementTanahPage() {
         ) : (
           <TanahTable
             data={rows}
-            onDelete={handleDelete}
-            deletingId={deletingId} 
-            showIdColumn={false}// ⬅️ opsional: kalau TanahTable mau disable tombol per baris
+            onDelete={handleDeleteClick}
+            deletingId={deletingId}
+            showIdColumn={false}
           />
         )}
       </div>
@@ -302,6 +346,42 @@ export default function ManagementTanahPage() {
           </div>
         </div>
       </div>
+
+      {/* Custom Dialogs */}
+      <ConfirmDialog
+        isOpen={dialogs.deleteConfirm}
+        onClose={() => closeDialog("deleteConfirm")}
+        onConfirm={handleDelete}
+        title="Konfirmasi Hapus Tanah"
+        message={`Yakin ingin mengajukan penghapusan tanah milik ${pendingDelete.name}? Ini akan membuat proposal yang perlu disetujui Kepala Desa.`}
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        type="danger"
+      />
+
+      <AlertDialog
+        isOpen={dialogs.deleteSuccess}
+        onClose={() => closeDialog("deleteSuccess")}
+        title="Berhasil!"
+        message={dialogMessage}
+        type="success"
+      />
+
+      <AlertDialog
+        isOpen={dialogs.deleteError}
+        onClose={() => closeDialog("deleteError")}
+        title="Gagal Menghapus"
+        message={dialogMessage}
+        type="error"
+      />
+
+      <AlertDialog
+        isOpen={dialogs.exportInfo}
+        onClose={() => closeDialog("exportInfo")}
+        title="Info"
+        message={dialogMessage}
+        type="info"
+      />
     </div>
   );
 }

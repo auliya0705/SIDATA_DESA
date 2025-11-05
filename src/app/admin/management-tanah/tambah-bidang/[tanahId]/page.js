@@ -1,8 +1,10 @@
+// src/app/admin/management-tanah/tambah-bidang/[tanahId]/page.js
 "use client";
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import BidangForm from "@/components/admin/BidangForm";
+import AlertDialog from "@/components/ui/AlertDialog";
 
 export default function TambahBidangTanahPage() {
   const params = useParams();
@@ -13,15 +15,37 @@ export default function TambahBidangTanahPage() {
   const [ownerName, setOwnerName] = useState("");
   const [loading, setLoading] = useState(true);
 
-  // Safety guard: param wajib angka valid
+  // Dialog states
+  const [dialogs, setDialogs] = useState({
+    invalidId: false,
+    success: false,
+    error: false,
+  });
+  const [dialogMessage, setDialogMessage] = useState("");
+
+  const closeDialog = (dialogName) => {
+    setDialogs({ ...dialogs, [dialogName]: false });
+  };
+
+  const handleInvalidIdClose = () => {
+    closeDialog("invalidId");
+    router.push("/admin/management-tanah");
+  };
+
+  const handleSuccessClose = () => {
+    closeDialog("success");
+    router.push(`/admin/management-tanah/detail/${tanahId}`);
+  };
+
+  // Safety guard
   useEffect(() => {
     if (!tanahId || Number.isNaN(tanahId) || tanahId <= 0) {
-      alert("Parameter id tanah tidak valid.");
-      router.push("/admin/management-tanah");
+      setDialogMessage("Parameter id tanah tidak valid.");
+      setDialogs({ ...dialogs, invalidId: true });
     }
-  }, [tanahId, router]);
+  }, [tanahId]);
 
-  // Ambil nama pemilik untuk header
+  // Fetch owner name
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -37,7 +61,9 @@ export default function TambahBidangTanahPage() {
         if (!res.ok) throw new Error(raw || `HTTP ${res.status}`);
         const data = ct.includes("application/json") ? JSON.parse(raw) : null;
         if (alive) {
-          setOwnerName(data?.pemilik?.nama_lengkap || data?.pemilik_nama || "(Tanpa nama)");
+          setOwnerName(
+            data?.pemilik?.nama_lengkap || data?.pemilik_nama || "(Tanpa nama)"
+          );
         }
       } catch (e) {
         console.error("Gagal fetch detail tanah:", e);
@@ -46,10 +72,11 @@ export default function TambahBidangTanahPage() {
         if (alive) setLoading(false);
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [tanahId]);
 
-  // Submit payload bidang → selalu kirim ke /staff/proposals/tanah/{tanahId}/bidang
   const handleSubmit = async (payload) => {
     try {
       const res = await fetch(`/api/staff/proposals/tanah/${tanahId}/bidang`, {
@@ -78,12 +105,14 @@ export default function TambahBidangTanahPage() {
         throw new Error(msg);
       }
 
-      alert("Pengajuan bidang berhasil dibuat. Menunggu persetujuan Kepala Desa.");
-      // balik ke detail tanah
-      router.push(`/admin/management-tanah/detail/${tanahId}`);
+      setDialogMessage(
+        "Pengajuan bidang berhasil dibuat. Menunggu persetujuan Kepala Desa."
+      );
+      setDialogs({ ...dialogs, success: true });
     } catch (e) {
       console.error("Pengajuan bidang gagal:", e);
-      alert(`Gagal mengajukan bidang: ${e.message}`);
+      setDialogMessage("Gagal mengajukan bidang: " + e.message);
+      setDialogs({ ...dialogs, error: true });
     }
   };
 
@@ -107,8 +136,33 @@ export default function TambahBidangTanahPage() {
         </h2>
       </div>
 
-      {/* Form bidang (tanpa identitas dasar) */}
+      {/* Form */}
       <BidangForm onSubmit={handleSubmit} />
+
+      {/* Custom Dialogs */}
+      <AlertDialog
+        isOpen={dialogs.invalidId}
+        onClose={handleInvalidIdClose}
+        title="Error"
+        message={dialogMessage}
+        type="error"
+      />
+
+      <AlertDialog
+        isOpen={dialogs.success}
+        onClose={handleSuccessClose}
+        title="Berhasil!"
+        message={dialogMessage}
+        type="success"
+      />
+
+      <AlertDialog
+        isOpen={dialogs.error}
+        onClose={() => closeDialog("error")}
+        title="Gagal Mengajukan Bidang"
+        message={dialogMessage}
+        type="error"
+      />
     </div>
   );
 }

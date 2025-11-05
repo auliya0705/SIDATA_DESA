@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import WargaTable from "@/components/admin/WargaTable";
 import { useWarga } from "@/hooks/useWarga";
+import AlertDialog from "@/components/ui/AlertDialog";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 export default function ManagementWargaPage() {
   const router = useRouter();
@@ -23,10 +25,23 @@ export default function ManagementWargaPage() {
   const [wargaData, setWargaData] = useState([]);
   const [pagination, setPagination] = useState(null);
 
-  // ---- Guard agar useEffect initial tidak 2x di dev (StrictMode)
+  // Dialog states
+  const [dialogs, setDialogs] = useState({
+    loadError: false,
+    deleteConfirm: false,
+    deleteSuccess: false,
+    deleteError: false,
+    exportInfo: false,
+  });
+  const [dialogMessage, setDialogMessage] = useState("");
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
+
   const didMountRef = useRef(false);
 
-  // Loader TIDAK tergantung searchQuery, agar tidak refetch tiap ketik
+  const closeDialog = (dialogName) => {
+    setDialogs({ ...dialogs, [dialogName]: false });
+  };
+
   const loadWargaData = useCallback(
     async ({ page = currentPage, perPage = rowsPerPage, search } = {}) => {
       try {
@@ -40,7 +55,6 @@ export default function ManagementWargaPage() {
 
         const response = await getWargaList(params);
 
-        // --- Normalisasi: approval (create/delete/update) -> isi nama_lengkap/nik/id dari payload/snapshot
         const rows = (response.data || []).map((row) => {
           const payload =
             typeof row.payload === "string"
@@ -54,40 +68,29 @@ export default function ManagementWargaPage() {
               : row.payload || null;
 
           const snap = payload?.snapshot || null;
-          const action = row.action || ""; // "create" | "delete" | "update"
+          const action = row.action || "";
 
           let nama = row.nama_lengkap ?? "-";
           let nik = row.nik ?? "-";
 
           if (action === "create") {
-            // Data warga baru ada langsung di payload.*
             nama = row.nama_lengkap ?? payload?.nama_lengkap ?? "-";
             nik = row.nik ?? payload?.nik ?? "-";
           } else if (action === "delete") {
-            // Hapus: idealnya pakai snapshot jika ada
             nama = row.nama_lengkap ?? snap?.nama_lengkap ?? "-";
             nik = row.nik ?? snap?.nik ?? "-";
           } else if (action === "update") {
-            // Update: coba after -> before
             nama =
               row.nama_lengkap ??
               payload?.after?.nama_lengkap ??
               payload?.before?.nama_lengkap ??
               "-";
-            nik =
-              row.nik ??
-              payload?.after?.nik ??
-              payload?.before?.nik ??
-              "-";
+            nik = row.nik ?? payload?.after?.nik ?? payload?.before?.nik ?? "-";
           } else {
-            // Bukan approval / fallback (mis. list warga master)
             nama = row.nama_lengkap ?? "-";
             nik = row.nik ?? "-";
           }
 
-          // id untuk aksi (detail/edit/delete)
-          // - delete/update: pakai target_id (id warga asli)
-          // - create: target_id biasanya null -> fallback ke row.id (id approval)
           const idForAction = row.target_id ?? row.id;
 
           return {
@@ -107,16 +110,16 @@ export default function ManagementWargaPage() {
         });
       } catch (err) {
         console.error("Failed to load warga data:", err);
-        alert("Gagal memuat data warga: " + err.message);
+        setDialogMessage("Gagal memuat data warga: " + err.message);
+        setDialogs({ ...dialogs, loadError: true });
       }
     },
-    [currentPage, rowsPerPage, getWargaList]
+    [currentPage, rowsPerPage, getWargaList, dialogs]
   );
 
-  // Refetch saat page/rows berubah (bukan saat searchQuery berubah)
   useEffect(() => {
     if (!didMountRef.current) {
-      didMountRef.current = true; // cegah double-run initial di dev
+      didMountRef.current = true;
     }
     loadWargaData({
       page: currentPage,
@@ -124,12 +127,11 @@ export default function ManagementWargaPage() {
       search: searchQuery,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, rowsPerPage]); // <- searchQuery sengaja tidak dimasukkan
+  }, [currentPage, rowsPerPage]);
 
   const handleSearch = (e) => {
     setSearchQuery(e.target.value);
-    setCurrentPage(1); // reset halaman saat mengubah query
-    // Tidak memanggil loadWargaData di sini agar tidak refetch tiap ketik
+    setCurrentPage(1);
   };
 
   const handleSearchSubmit = (e) => {
@@ -138,25 +140,34 @@ export default function ManagementWargaPage() {
   };
 
   const handleExport = () => {
-    alert("Fitur ekspor data akan segera tersedia");
+    setDialogMessage("Fitur ekspor data akan segera tersedia");
+    setDialogs({ ...dialogs, exportInfo: true });
   };
 
-  const handleDelete = async (id) => {
+  const handleDeleteClick = (id) => {
     if (!id) {
-      alert("ID tidak valid.");
+      setDialogMessage("ID tidak valid.");
+      setDialogs({ ...dialogs, deleteError: true });
       return;
     }
-    if (!confirm("Yakin ingin menghapus data warga ini?")) return;
+    setPendingDeleteId(id);
+    setDialogs({ ...dialogs, deleteConfirm: true });
+  };
+
+  const handleDelete = async () => {
+    if (!pendingDeleteId) return;
 
     try {
-      await deleteWarga(id);
-      alert("Proposal hapus dibuat. Menunggu persetujuan Kepala Desa.");
+      await deleteWarga(pendingDeleteId);
+      setDialogMessage(
+        "Proposal hapus berhasil dibuat. Menunggu persetujuan Kepala Desa."
+      );
+      setDialogs({ ...dialogs, deleteSuccess: true });
 
-      // Jika hanya 1 baris tersisa di halaman ini, mundurkan halaman 1 langkah
+      // Reload data
       if (wargaData.length === 1 && currentPage > 1) {
         setCurrentPage((p) => p - 1);
       } else {
-        // reload dengan query saat ini
         loadWargaData({
           page: currentPage,
           perPage: rowsPerPage,
@@ -165,11 +176,13 @@ export default function ManagementWargaPage() {
       }
     } catch (err) {
       console.error("Delete error:", err);
-      alert("Gagal menghapus data: " + err.message);
+      setDialogMessage("Gagal menghapus data: " + err.message);
+      setDialogs({ ...dialogs, deleteError: true });
+    } finally {
+      setPendingDeleteId(null);
     }
   };
 
-  // total pages untuk pagination
   const totalPages = pagination?.last_page || 1;
 
   const renderPagination = () => {
@@ -226,7 +239,10 @@ export default function ManagementWargaPage() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           {/* Search */}
-          <form onSubmit={handleSearchSubmit} className="relative w-full md:w-96">
+          <form
+            onSubmit={handleSearchSubmit}
+            className="relative w-full md:w-96"
+          >
             <Search
               className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
               size={20}
@@ -272,12 +288,7 @@ export default function ManagementWargaPage() {
       )}
 
       {/* Table */}
-      {!loading && (
-        <WargaTable
-          data={wargaData}
-          onDelete={handleDelete}
-        />
-      )}
+      {!loading && <WargaTable data={wargaData} onDelete={handleDeleteClick} />}
 
       {/* Empty State */}
       {!loading && wargaData.length === 0 && (
@@ -360,6 +371,50 @@ export default function ManagementWargaPage() {
           </div>
         </div>
       )}
+
+      {/* Custom Dialogs */}
+      <AlertDialog
+        isOpen={dialogs.loadError}
+        onClose={() => closeDialog("loadError")}
+        title="Error"
+        message={dialogMessage}
+        type="error"
+      />
+
+      <AlertDialog
+        isOpen={dialogs.exportInfo}
+        onClose={() => closeDialog("exportInfo")}
+        title="Info"
+        message={dialogMessage}
+        type="info"
+      />
+
+      <ConfirmDialog
+        isOpen={dialogs.deleteConfirm}
+        onClose={() => closeDialog("deleteConfirm")}
+        onConfirm={handleDelete}
+        title="Konfirmasi Hapus"
+        message="Yakin ingin menghapus data warga ini? Ini akan membuat proposal penghapusan yang perlu disetujui Kepala Desa."
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        type="danger"
+      />
+
+      <AlertDialog
+        isOpen={dialogs.deleteSuccess}
+        onClose={() => closeDialog("deleteSuccess")}
+        title="Berhasil!"
+        message={dialogMessage}
+        type="success"
+      />
+
+      <AlertDialog
+        isOpen={dialogs.deleteError}
+        onClose={() => closeDialog("deleteError")}
+        title="Gagal Menghapus"
+        message={dialogMessage}
+        type="error"
+      />
     </div>
   );
 }

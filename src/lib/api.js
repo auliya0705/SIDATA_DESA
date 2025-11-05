@@ -10,6 +10,7 @@ import { getApiUrl } from "./config";
  * - Parses JSON safely (fallback to text)
  * - Flattens Laravel validation errors
  * - HARD GUARD: blocks any call to "/apply" since backend doesn't have it
+ * - 🔧 NEW: Silent 404 for deleted resources (normal in approval system)
  */
 export async function apiClient(endpoint, options = {}) {
   // HARD GUARD: stop accidental /apply hits anywhere in FE
@@ -86,7 +87,9 @@ export async function apiClient(endpoint, options = {}) {
           let flatValidation = "";
           if (data?.errors && typeof data.errors === "object") {
             flatValidation = Object.entries(data.errors)
-              .map(([k, v]) => (Array.isArray(v) ? `${k}: ${v.join(", ")}` : `${k}: ${v}`))
+              .map(([k, v]) =>
+                Array.isArray(v) ? `${k}: ${v.join(", ")}` : `${k}: ${v}`
+              )
               .join("; ");
           }
 
@@ -106,10 +109,13 @@ export async function apiClient(endpoint, options = {}) {
         }
       } else {
         // Non-JSON (HTML/text)
-        msg = raw?.trim() ? raw.slice(0, 500) : `${res.status}: ${res.statusText}`;
+        msg = raw?.trim()
+          ? raw.slice(0, 500)
+          : `${res.status}: ${res.statusText}`;
       }
 
-      const hint = typeof endpoint === "string" ? ` [endpoint: ${endpoint}]` : "";
+      const hint =
+        typeof endpoint === "string" ? ` [endpoint: ${endpoint}]` : "";
       const error = new Error(`${msg}${hint}`);
       error.status = res.status;
       if (contentType.includes("application/json")) {
@@ -135,14 +141,26 @@ export async function apiClient(endpoint, options = {}) {
     }
     return raw;
   } catch (err) {
-    // Pastikan log tidak “{}” lagi: log string + detail
-    const message = err?.message || String(err);
-    console.error("❌ API Error:", message, {
-      endpoint,
-      method: options?.method || "GET",
-      status: err?.status,
-      data: err?.data,
-    });
+    // 🔧 FIX: Don't log 404 errors (normal for deleted resources in approval system)
+    // Only log if NOT 404, or if it's an important endpoint
+    const is404 = err?.status === 404;
+    const isPreviewFetch =
+      typeof endpoint === "string" &&
+      (endpoint.includes("/tanah/") ||
+        endpoint.includes("/bidang/") ||
+        endpoint.includes("/warga/"));
+
+    // Skip logging for 404 on preview fetches (deleted data is expected)
+    if (!is404 || !isPreviewFetch) {
+      const message = err?.message || String(err);
+      console.error("❌ API Error:", message, {
+        endpoint,
+        method: options?.method || "GET",
+        status: err?.status,
+        data: err?.data,
+      });
+    }
+
     throw err;
   }
 }

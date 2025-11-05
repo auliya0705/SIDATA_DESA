@@ -5,27 +5,46 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import TanahForm from "@/components/admin/TanahForm";
+import AlertDialog from "@/components/ui/AlertDialog";
 
 export default function CreateTanahPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
+  // Dialog states
+  const [dialogs, setDialogs] = useState({
+    success: false,
+    error: false,
+  });
+  const [dialogMessage, setDialogMessage] = useState("");
+
+  const closeDialog = (dialogName) => {
+    setDialogs({ ...dialogs, [dialogName]: false });
+  };
+
+  const handleSuccessClose = () => {
+    closeDialog("success");
+    router.push("/admin/management-tanah");
+  };
+
   const handleSubmit = async (formData) => {
     setLoading(true);
     try {
-      // --- Bentuk payload sesuai backend proposal Tanah ---
-      // Ambil penggunaan pertama (sementara 1 bidang)
+      // Bentuk payload sesuai backend proposal Tanah
       const penggunaanSelected =
-        (formData.penggunaan_tanah?.[0] || "").toUpperCase().replaceAll(" ", "_") || "LAIN_LAIN";
+        (formData.penggunaan_tanah?.[0] || "")
+          .toUpperCase()
+          .replaceAll(" ", "_") || "LAIN_LAIN";
 
-      // Bungkus geometry → Feature (opsional)
       const feature =
         formData.geojson && formData.geojson.type === "Polygon"
           ? { type: "Feature", properties: {}, geometry: formData.geojson }
           : null;
 
       const payload = {
-        ...(formData.nomor_urut ? { nomor_urut: String(formData.nomor_urut) } : {}),
+        ...(formData.nomor_urut
+          ? { nomor_urut: String(formData.nomor_urut) }
+          : {}),
         warga_id: Number(formData.warga_id),
         keterangan: formData.keterangan || "",
         bidang: [
@@ -39,7 +58,6 @@ export default function CreateTanahPage() {
         ],
       };
 
-      // --- POST JSON via Next rewrite proxy (/api → Laravel) ---
       const res = await fetch("/api/staff/proposals/tanah", {
         method: "POST",
         headers: {
@@ -58,7 +76,6 @@ export default function CreateTanahPage() {
         if (contentType.includes("application/json")) {
           try {
             const data = JSON.parse(raw);
-            // Flatten validation errors jika ada
             if (data?.errors) {
               const flat = Object.entries(data.errors)
                 .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
@@ -71,21 +88,23 @@ export default function CreateTanahPage() {
             msg = `${res.status}: ${res.statusText}`;
           }
         } else {
-          msg = raw?.trim() ? raw.slice(0, 300) : `${res.status}: ${res.statusText}`;
+          msg = raw?.trim()
+            ? raw.slice(0, 300)
+            : `${res.status}: ${res.statusText}`;
         }
         throw new Error(msg);
       }
 
-      // Sukses (optional parse)
-      if (contentType.includes("application/json")) {
-        // const result = JSON.parse(raw);
-      }
-
-      alert("Proposal tanah berhasil dibuat! Menunggu persetujuan Kepala Desa.");
-      router.push("/admin/management-tanah");
+      setDialogMessage(
+        "Proposal tanah berhasil dibuat! Menunggu persetujuan Kepala Desa."
+      );
+      setDialogs({ ...dialogs, success: true });
     } catch (err) {
       console.error("❌ Create tanah error:", err);
-      alert("Gagal membuat proposal tanah: " + (err?.message || String(err)));
+      setDialogMessage(
+        "Gagal membuat proposal tanah: " + (err?.message || String(err))
+      );
+      setDialogs({ ...dialogs, error: true });
     } finally {
       setLoading(false);
     }
@@ -98,7 +117,8 @@ export default function CreateTanahPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Input Data Tanah</h1>
           <p className="text-sm text-gray-600 mt-1">
-            Data akan dikirim sebagai proposal dan menunggu persetujuan Kepala Desa
+            Data akan dikirim sebagai proposal dan menunggu persetujuan Kepala
+            Desa
           </p>
         </div>
         <Link
@@ -112,6 +132,23 @@ export default function CreateTanahPage() {
 
       {/* Form */}
       <TanahForm mode="create" onSubmit={handleSubmit} loading={loading} />
+
+      {/* Custom Dialogs */}
+      <AlertDialog
+        isOpen={dialogs.success}
+        onClose={handleSuccessClose}
+        title="Berhasil!"
+        message={dialogMessage}
+        type="success"
+      />
+
+      <AlertDialog
+        isOpen={dialogs.error}
+        onClose={() => closeDialog("error")}
+        title="Gagal Membuat Proposal"
+        message={dialogMessage}
+        type="error"
+      />
     </div>
   );
 }

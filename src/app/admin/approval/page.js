@@ -19,6 +19,10 @@ import { useProposal } from "@/hooks/useProposal";
 import { useWarga } from "@/hooks/useWarga";
 import { apiGet } from "@/lib/api";
 import { API_ENDPOINTS } from "@/lib/config";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import AlertDialog from "@/components/ui/AlertDialog";
+import PromptDialog from "@/components/ui/PromptDialog";
+import ApprovalDetailModal from "@/components/admin/ApprovalDetailModal";
 
 export default function ApprovalPage() {
   const router = useRouter();
@@ -52,6 +56,21 @@ export default function ApprovalPage() {
     rejected: 0,
   });
 
+  // Dialog states
+  const [dialogs, setDialogs] = useState({
+    unauthorized: false,
+    approveConfirm: false,
+    rejectPrompt: false,
+    nikConflict: false,
+    approveSuccess: false,
+    approveError: false,
+    rejectSuccess: false,
+    rejectError: false,
+    loadError: false,
+  });
+  const [dialogMessage, setDialogMessage] = useState("");
+  const [pendingAction, setPendingAction] = useState(null);
+
   // ---- helpers
   const parseMaybeJson = (v) => {
     if (typeof v !== "string") return v;
@@ -75,7 +94,8 @@ export default function ApprovalPage() {
     let ignoreId = null;
 
     if (action === "update") {
-      nikProposed = after?.nik ?? payload?.nik ?? before?.nik ?? row?.nik ?? null;
+      nikProposed =
+        after?.nik ?? payload?.nik ?? before?.nik ?? row?.nik ?? null;
       ignoreId = before?.id ?? payload?.id ?? row?.target_id ?? row?.id ?? null;
     } else if (action === "create") {
       nikProposed = payload?.nik ?? row?.nik ?? null;
@@ -96,7 +116,8 @@ export default function ApprovalPage() {
     try {
       const d = await apiGet(API_ENDPOINTS.BIDANG.SHOW(bidangId));
       const nik = d?.tanah?.pemilik?.nik ?? null;
-      const nama = d?.tanah?.pemilik?.nama ?? d?.tanah?.pemilik?.nama_lengkap ?? null;
+      const nama =
+        d?.tanah?.pemilik?.nama ?? d?.tanah?.pemilik?.nama_lengkap ?? null;
       const tanah_id = d?.tanah?.id ?? null;
       const nomor_urut = d?.tanah?.nomor_urut ?? null;
       return { nik, nama, tanah_id, nomor_urut };
@@ -118,12 +139,20 @@ export default function ApprovalPage() {
     }
   }
 
+  const closeDialog = (dialogName) => {
+    setDialogs({ ...dialogs, [dialogName]: false });
+  };
+
+  const handleUnauthorizedClose = () => {
+    closeDialog("unauthorized");
+    router.push("/admin/dashboard");
+  };
+
   // Check role Kepala
   useEffect(() => {
     const user = getCurrentUser();
     if (!user || (user.role !== "kepala_desa" && user.role !== "kepala")) {
-      alert("Halaman ini hanya untuk Kepala Desa");
-      router.push("/admin/dashboard");
+      setDialogs({ ...dialogs, unauthorized: true });
     }
   }, [router]);
 
@@ -199,7 +228,8 @@ export default function ApprovalPage() {
         // preview untuk bidang/tanah
         let pv = null;
         if (row.module === "bidang") {
-          pv = payload?.preview_pemilik ?? bidangPreviewMap[row.target_id] ?? null;
+          pv =
+            payload?.preview_pemilik ?? bidangPreviewMap[row.target_id] ?? null;
         } else if (row.module === "tanah") {
           pv =
             payload?.preview_pemilik ??
@@ -272,8 +302,13 @@ export default function ApprovalPage() {
               null;
             break;
           case "delete":
-              nik = nik ?? snap?.nik ?? snap?.pemilik?.nik ?? null;
-              nama = nama ?? snap?.nama_lengkap ?? snap?.pemilik?.nama_lengkap ?? snap?.pemilik?.nama ?? null;
+            nik = nik ?? snap?.nik ?? snap?.pemilik?.nik ?? null;
+            nama =
+              nama ??
+              snap?.nama_lengkap ??
+              snap?.pemilik?.nama_lengkap ??
+              snap?.pemilik?.nama ??
+              null;
             break;
         }
 
@@ -307,6 +342,8 @@ export default function ApprovalPage() {
       }
     } catch (err) {
       console.error("Error fetching proposals:", err);
+      setDialogMessage("Gagal memuat data proposal: " + err.message);
+      setDialogs({ ...dialogs, loadError: true });
     } finally {
       setIsRefreshing(false);
     }
@@ -327,60 +364,81 @@ export default function ApprovalPage() {
   };
 
   // ========= APPROVE with preflight NIK duplicate check =========
-  const handleApprove = async (row) => {
-    if (!confirm("Yakin ingin menyetujui pengajuan ini?")) return;
-    try {
-      if (
-        row?.module === "warga" &&
-        (row?.action === "create" || row?.action === "update")
-      ) {
-        const { nikProposed, ignoreId } = pickNikAndIgnoreId(row);
-        if (nikProposed) {
+  const handleApproveClick = async (row) => {
+    setPendingAction(row);
+
+    // Check NIK duplicate for warga create/update
+    if (
+      row?.module === "warga" &&
+      (row?.action === "create" || row?.action === "update")
+    ) {
+      const { nikProposed, ignoreId } = pickNikAndIgnoreId(row);
+      if (nikProposed) {
+        try {
           const { exists, conflictId } = await checkNikUnique(
             nikProposed,
             ignoreId
           );
           if (exists) {
-            alert(
-              [
-                "Tidak bisa approve: NIK sudah terpakai di database.",
-                `• NIK: ${nikProposed}`,
-                conflictId ? `• ID konflik: ${conflictId}` : null,
-                "",
-                "Silakan minta pengusul mengganti NIK atau lakukan EDIT data yang benar.",
-              ]
-                .filter(Boolean)
-                .join("\n")
+            setDialogMessage(
+              `Tidak bisa approve: NIK sudah terpakai di database.\n\n` +
+                `• NIK: ${nikProposed}\n` +
+                (conflictId ? `• ID konflik: ${conflictId}\n` : "") +
+                `\nSilakan minta pengusul mengganti NIK atau lakukan EDIT data yang benar.`
             );
+            setDialogs({ ...dialogs, nikConflict: true });
             return;
           }
+        } catch (err) {
+          console.error("NIK check error:", err);
         }
       }
+    }
 
-      const res = await approveProposal(row);
-      alert(res?.message || "Data berhasil disetujui!");
+    // Show confirmation dialog
+    setDialogs({ ...dialogs, approveConfirm: true });
+  };
+
+  const handleApprove = async () => {
+    if (!pendingAction) return;
+
+    try {
+      const res = await approveProposal(pendingAction);
+      setDialogMessage(res?.message || "Proposal berhasil disetujui!");
+      setDialogs({ ...dialogs, approveSuccess: true });
       await fetchProposals();
     } catch (err) {
-      alert(err.message || "Gagal menyetujui data");
-      await fetchProposals();
+      setDialogMessage(err.message || "Gagal menyetujui proposal");
+      setDialogs({ ...dialogs, approveError: true });
+    } finally {
+      setPendingAction(null);
     }
   };
 
-  const handleReject = async (row) => {
-    const reason = prompt("Alasan penolakan:");
-    if (!reason || !reason.trim()) return;
+  const handleRejectClick = (row) => {
+    setPendingAction(row);
+    setDialogs({ ...dialogs, rejectPrompt: true });
+  };
+
+  const handleReject = async (reason) => {
+    if (!pendingAction) return;
+
     try {
-      const res = await rejectProposal(row, reason);
-      alert(res?.message || "Data berhasil ditolak!");
+      const res = await rejectProposal(pendingAction, reason);
+      setDialogMessage(res?.message || "Proposal berhasil ditolak!");
+      setDialogs({ ...dialogs, rejectSuccess: true });
       await fetchProposals();
     } catch (err) {
       if (err.message.includes("404")) {
-        alert(
-          "Fitur reject belum tersedia di backend. Silakan hubungi administrator."
+        setDialogMessage(
+          "Fitur reject sedang dalam pengembangan. Silakan hubungi admin."
         );
       } else {
-        alert(err.message || "Gagal menolak data");
+        setDialogMessage(err.message || "Gagal menolak proposal");
       }
+      setDialogs({ ...dialogs, rejectError: true });
+    } finally {
+      setPendingAction(null);
     }
   };
 
@@ -427,23 +485,33 @@ export default function ApprovalPage() {
     return actionMap[action] || action;
   };
 
-  // Prevent access if not Kepala Desa (server guard di atas tetap dipertahankan)
+  // Prevent access if not Kepala Desa
   const user = getCurrentUser();
   if (!user || (user.role !== "kepala_desa" && user.role !== "kepala")) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <div className="text-red-600 text-xl mb-2">⛔</div>
-          <p className="text-gray-700 font-semibold">Akses Ditolak</p>
-          <p className="text-gray-500 text-sm">
-            Halaman ini hanya untuk Kepala Desa
-          </p>
+      <>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <div className="text-red-600 text-xl mb-2">⛔</div>
+            <p className="text-gray-700 font-semibold">Akses Ditolak</p>
+            <p className="text-gray-500 text-sm">
+              Halaman ini hanya untuk Kepala Desa
+            </p>
+          </div>
         </div>
-      </div>
+
+        <AlertDialog
+          isOpen={dialogs.unauthorized}
+          onClose={handleUnauthorizedClose}
+          title="Akses Ditolak"
+          message="Halaman ini hanya untuk Kepala Desa"
+          type="error"
+        />
+      </>
     );
   }
 
-  // helper untuk render diff di modal (khusus warga/update) — SATU versi saja
+  // helper untuk render diff di modal (khusus warga/update)
   const renderWargaDiff = (row) => {
     if (row?.module !== "warga" || row?.action !== "update") return null;
     const before = row?._before || {};
@@ -467,7 +535,7 @@ export default function ApprovalPage() {
     const changed = fields
       .map((k) => {
         const oldV = before?.[k] ?? null;
-        const newV = k in delta ? delta[k] : undefined; // hanya tampilkan kalau memang dikirim
+        const newV = k in delta ? delta[k] : undefined;
         if (typeof newV === "undefined") return null;
         const isChanged = String(oldV ?? "") !== String(newV ?? "");
         return { k, oldV, newV, isChanged };
@@ -493,9 +561,15 @@ export default function ApprovalPage() {
             <tbody>
               {changed.map(({ k, oldV, newV, isChanged }) => (
                 <tr key={k} className={isChanged ? "bg-yellow-50" : ""}>
-                  <td className="text-sm px-3 py-2 border-b whitespace-nowrap">{k}</td>
-                  <td className="text-sm px-3 py-2 border-b">{String(oldV ?? "-")}</td>
-                  <td className="text-sm px-3 py-2 border-b">{String(newV ?? "-")}</td>
+                  <td className="text-sm px-3 py-2 border-b whitespace-nowrap">
+                    {k}
+                  </td>
+                  <td className="text-sm px-3 py-2 border-b">
+                    {String(oldV ?? "-")}
+                  </td>
+                  <td className="text-sm px-3 py-2 border-b">
+                    {String(newV ?? "-")}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -510,7 +584,10 @@ export default function ApprovalPage() {
       {/* Error Alert */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start space-x-3">
-          <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={20} />
+          <AlertCircle
+            className="text-red-600 flex-shrink-0 mt-0.5"
+            size={20}
+          />
           <div>
             <p className="text-red-800 font-medium">Terjadi Kesalahan</p>
             <p className="text-red-600 text-sm whitespace-pre-line">{error}</p>
@@ -552,7 +629,9 @@ export default function ApprovalPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600 mb-1">Ditolak</p>
-              <p className="text-3xl font-bold text-red-600">{stats.rejected}</p>
+              <p className="text-3xl font-bold text-red-600">
+                {stats.rejected}
+              </p>
             </div>
             <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
               <XCircle className="text-red-600" size={24} />
@@ -565,7 +644,9 @@ export default function ApprovalPage() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex items-center space-x-3">
-            <h2 className="text-xl font-semibold text-gray-800">Approval Data</h2>
+            <h2 className="text-xl font-semibold text-gray-800">
+              Approval Data
+            </h2>
             {isRefreshing && (
               <Loader2 className="animate-spin text-teal-600" size={20} />
             )}
@@ -652,12 +733,12 @@ export default function ApprovalPage() {
       ) : (
         <ApprovalTable
           data={proposals}
-          onApprove={handleApprove}
-          onReject={handleReject}
+          onApprove={handleApproveClick}
+          onReject={handleRejectClick}
           onViewDetail={handleViewDetail}
           getModuleName={getModuleName}
           getActionName={getActionName}
-          showId={false}   // <-- sembunyikan kolom ID
+          showId={false}
         />
       )}
 
@@ -714,7 +795,9 @@ export default function ApprovalPage() {
 
               <button
                 onClick={() =>
-                  setCurrentPage(Math.min(pagination.last_page, currentPage + 1))
+                  setCurrentPage(
+                    Math.min(pagination.last_page, currentPage + 1)
+                  )
                 }
                 disabled={currentPage === pagination.last_page}
                 className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -737,125 +820,104 @@ export default function ApprovalPage() {
       </div>
 
       {/* Detail Modal */}
-      {showDetailModal && selectedItem && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4">
-              <h3 className="text-xl font-bold text-gray-800">Detail Pengajuan</h3>
-            </div>
+      <ApprovalDetailModal
+        isOpen={showDetailModal}
+        selectedItem={selectedItem}
+        onClose={() => setShowDetailModal(false)}
+        onApprove={handleApproveClick}
+        onReject={handleRejectClick}
+        getModuleName={getModuleName}
+        getActionName={getActionName}
+        parseMaybeJson={parseMaybeJson}
+        renderWargaDiff={renderWargaDiff}
+      />
 
-            <div className="p-6 space-y-4">
-              {/* Basic Info */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600">ID Proposal</p>
-                  <p className="font-medium text-gray-900">#{selectedItem.id}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Modul</p>
-                  <p className="font-medium text-gray-900">
-                    {getModuleName(selectedItem.module)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Jenis Perubahan</p>
-                  <p className="font-medium text-gray-900">
-                    {getActionName(selectedItem.action)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Status</p>
-                  <span
-                    className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
-                      selectedItem.status === "pending"
-                        ? "bg-yellow-100 text-yellow-800"
-                        : selectedItem.status === "approved"
-                        ? "bg-green-100 text-green-800"
-                        : "bg-red-100 text-red-800"
-                    }`}
-                  >
-                    {selectedItem.status === "pending"
-                      ? "Pending"
-                      : selectedItem.status === "approved"
-                      ? "Approved"
-                      : "Ditolak"}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Tanggal Pengajuan</p>
-                  <p className="font-medium text-gray-900">
-                    {new Date(selectedItem.created_at).toLocaleString("id-ID")}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Diajukan Oleh</p>
-                  <p className="font-medium text-gray-900">
-                    User ID: {selectedItem.submitted_by}
-                  </p>
-                </div>
-              </div>
+      {/* Custom Dialogs */}
 
-              {/* Payload Data (raw) */}
-              <div>
-                <p className="text-sm text-gray-600 mb-2 font-semibold">
-                  Data yang Diajukan (raw):
-                </p>
-                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                  <pre className="text-sm overflow-auto whitespace-pre-wrap">
-                    {JSON.stringify(selectedItem.payload, null, 2)}
-                  </pre>
-                </div>
-              </div>
+      {/* Unauthorized */}
+      <AlertDialog
+        isOpen={dialogs.unauthorized}
+        onClose={handleUnauthorizedClose}
+        title="Akses Ditolak"
+        message="Halaman ini hanya untuk Kepala Desa"
+        type="error"
+      />
 
-              {/* Diff khusus warga/update */}
-              {renderWargaDiff(selectedItem)}
+      {/* NIK Conflict */}
+      <AlertDialog
+        isOpen={dialogs.nikConflict}
+        onClose={() => closeDialog("nikConflict")}
+        title="NIK Sudah Terdaftar"
+        message={dialogMessage}
+        type="error"
+      />
 
-              {/* Target ID if exists */}
-              {selectedItem.target_id && (
-                <div>
-                  <p className="text-sm text-gray-600">Target ID</p>
-                  <p className="font-medium text-gray-900">
-                    {selectedItem.target_id}
-                  </p>
-                </div>
-              )}
-            </div>
+      {/* Approve Confirmation */}
+      <ConfirmDialog
+        isOpen={dialogs.approveConfirm}
+        onClose={() => closeDialog("approveConfirm")}
+        onConfirm={handleApprove}
+        title="Konfirmasi Persetujuan"
+        message="Yakin ingin menyetujui proposal ini? Data akan langsung masuk ke sistem."
+        confirmText="Ya, Setujui"
+        cancelText="Batal"
+        type="success"
+      />
 
-            {/* Actions */}
-            <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex justify-end space-x-3">
-              {selectedItem.status === "pending" && (
-                <>
-                  <button
-                    onClick={() => {
-                      handleReject(selectedItem);
-                      setShowDetailModal(false);
-                    }}
-                    className="px-6 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
-                  >
-                    Tolak
-                  </button>
+      {/* Reject Prompt */}
+      <PromptDialog
+        isOpen={dialogs.rejectPrompt}
+        onClose={() => closeDialog("rejectPrompt")}
+        onSubmit={handleReject}
+        title="Alasan Penolakan"
+        message="Masukkan alasan mengapa proposal ditolak"
+        placeholder="Tulis alasan penolakan di sini..."
+        required={true}
+        inputType="textarea"
+        confirmText="Tolak Proposal"
+        cancelText="Batal"
+      />
 
-                  <button
-                    onClick={() => {
-                      handleApprove(selectedItem);
-                      setShowDetailModal(false);
-                    }}
-                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                  >
-                    Approve
-                  </button>
-                </>
-              )}
-              <button
-                onClick={() => setShowDetailModal(false)}
-                className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Success/Error Alerts */}
+      <AlertDialog
+        isOpen={dialogs.approveSuccess}
+        onClose={() => closeDialog("approveSuccess")}
+        title="Berhasil!"
+        message={dialogMessage}
+        type="success"
+      />
+
+      <AlertDialog
+        isOpen={dialogs.approveError}
+        onClose={() => closeDialog("approveError")}
+        title="Gagal Menyetujui"
+        message={dialogMessage}
+        type="error"
+      />
+
+      <AlertDialog
+        isOpen={dialogs.rejectSuccess}
+        onClose={() => closeDialog("rejectSuccess")}
+        title="Proposal Ditolak"
+        message={dialogMessage}
+        type="success"
+      />
+
+      <AlertDialog
+        isOpen={dialogs.rejectError}
+        onClose={() => closeDialog("rejectError")}
+        title="Gagal Menolak"
+        message={dialogMessage}
+        type="error"
+      />
+
+      <AlertDialog
+        isOpen={dialogs.loadError}
+        onClose={() => closeDialog("loadError")}
+        title="Error"
+        message={dialogMessage}
+        type="error"
+      />
     </div>
   );
 }

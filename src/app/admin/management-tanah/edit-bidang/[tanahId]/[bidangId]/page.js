@@ -1,8 +1,10 @@
+// src/app/admin/management-tanah/edit-bidang/[tanahId]/[bidangId]/page.js
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import BidangForm from "@/components/admin/BidangForm";
+import AlertDialog from "@/components/ui/AlertDialog";
 
 export default function EditBidangTanahPage() {
   const router = useRouter();
@@ -10,9 +12,31 @@ export default function EditBidangTanahPage() {
 
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState("");
-  const [detail, setDetail] = useState(null); // hasil GET /api/bidang/{id}
+  const [detail, setDetail] = useState(null);
 
-  // -- fetch detail bidang --
+  // Dialog states
+  const [dialogs, setDialogs] = useState({
+    fetchError: false,
+    success: false,
+    error: false,
+  });
+  const [dialogMessage, setDialogMessage] = useState("");
+
+  const closeDialog = (dialogName) => {
+    setDialogs({ ...dialogs, [dialogName]: false });
+  };
+
+  const handleFetchErrorClose = () => {
+    closeDialog("fetchError");
+    router.push(`/admin/management-tanah/detail/${tanahId}`);
+  };
+
+  const handleSuccessClose = () => {
+    closeDialog("success");
+    router.push(`/admin/management-tanah/detail/${tanahId}`);
+  };
+
+  // Fetch detail bidang
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -33,15 +57,20 @@ export default function EditBidangTanahPage() {
         setDetail(data);
       } catch (e) {
         console.error("Fetch detail bidang gagal:", e);
-        setFetchError(e?.message || "Gagal mengambil data bidang");
+        const errorMsg = e?.message || "Gagal mengambil data bidang";
+        setFetchError(errorMsg);
+        setDialogMessage(errorMsg);
+        setDialogs({ ...dialogs, fetchError: true });
       } finally {
         if (alive) setLoading(false);
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [bidangId]);
 
-  // mapping untuk initialData ke BidangForm
+  // Mapping untuk initialData
   const initialData = useMemo(() => {
     if (!detail) return null;
     return {
@@ -54,32 +83,43 @@ export default function EditBidangTanahPage() {
     };
   }, [detail]);
 
-  // submit -> proposal UPDATE bidang
+  // Submit proposal UPDATE bidang
   const handleSubmit = async (payload) => {
     try {
-         const fields = {
-       ...(payload.luas_m2 != null ? { luas_m2: Number(payload.luas_m2) } : {}),
-       ...(payload.status_hak ? { status_hak: String(payload.status_hak).toUpperCase() } : {}),
-       ...(payload.penggunaan ? { penggunaan: String(payload.penggunaan).toUpperCase() } : {}),
-       ...(payload.keterangan ? { keterangan: payload.keterangan } : {}),
-     };
-    
-     const jsonBody = {
-       ...(Object.keys(fields).length ? { fields } : {}),
-       ...(payload.geometry ? { geometry: payload.geometry, empat_titik: !!(payload.empat_titik ?? true) } : {}),
-       ...(payload.geojson_nama ? { geojson_nama: payload.geojson_nama } : {}),
-       ...(payload.srid ? { srid: payload.srid } : {}),
-     };
-    
-     const res = await fetch(`/api/staff/proposals/bidang/${bidangId}`, {
-       method: "PUT",
-       headers: {
-         Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-         Accept: "application/json",
-         "Content-Type": "application/json",
-       },
-       body: JSON.stringify(jsonBody),
-     });
+      const fields = {
+        ...(payload.luas_m2 != null
+          ? { luas_m2: Number(payload.luas_m2) }
+          : {}),
+        ...(payload.status_hak
+          ? { status_hak: String(payload.status_hak).toUpperCase() }
+          : {}),
+        ...(payload.penggunaan
+          ? { penggunaan: String(payload.penggunaan).toUpperCase() }
+          : {}),
+        ...(payload.keterangan ? { keterangan: payload.keterangan } : {}),
+      };
+
+      const jsonBody = {
+        ...(Object.keys(fields).length ? { fields } : {}),
+        ...(payload.geometry
+          ? {
+              geometry: payload.geometry,
+              empat_titik: !!(payload.empat_titik ?? true),
+            }
+          : {}),
+        ...(payload.geojson_nama ? { geojson_nama: payload.geojson_nama } : {}),
+        ...(payload.srid ? { srid: payload.srid } : {}),
+      };
+
+      const res = await fetch(`/api/staff/proposals/bidang/${bidangId}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(jsonBody),
+      });
 
       const ct = res.headers.get("content-type") || "";
       const raw = await res.text();
@@ -97,11 +137,14 @@ export default function EditBidangTanahPage() {
         throw new Error(msg);
       }
 
-      alert("Proposal update bidang dibuat. Menunggu persetujuan Kepala Desa.");
-      router.push(`/admin/management-tanah/detail/${tanahId}`);
+      setDialogMessage(
+        "Proposal update bidang berhasil dibuat. Menunggu persetujuan Kepala Desa."
+      );
+      setDialogs({ ...dialogs, success: true });
     } catch (e) {
       console.error("❌ Update bidang error:", e);
-      alert("Gagal mengajukan update bidang: " + (e?.message || e));
+      setDialogMessage("Gagal mengajukan update bidang: " + (e?.message || e));
+      setDialogs({ ...dialogs, error: true });
     }
   };
 
@@ -118,9 +161,21 @@ export default function EditBidangTanahPage() {
 
   if (fetchError || !detail) {
     return (
-      <div className="p-6 bg-white rounded-lg border">
-        <p className="text-red-600 font-medium">Gagal memuat: {fetchError || "Data kosong"}</p>
-      </div>
+      <>
+        <div className="p-6 bg-white rounded-lg border">
+          <p className="text-red-600 font-medium">
+            Gagal memuat: {fetchError || "Data kosong"}
+          </p>
+        </div>
+
+        <AlertDialog
+          isOpen={dialogs.fetchError}
+          onClose={handleFetchErrorClose}
+          title="Gagal Memuat Data"
+          message={dialogMessage}
+          type="error"
+        />
+      </>
     );
   }
 
@@ -137,6 +192,23 @@ export default function EditBidangTanahPage() {
         initialData={initialData}
         onSubmit={handleSubmit}
         loading={false}
+      />
+
+      {/* Custom Dialogs */}
+      <AlertDialog
+        isOpen={dialogs.success}
+        onClose={handleSuccessClose}
+        title="Berhasil!"
+        message={dialogMessage}
+        type="success"
+      />
+
+      <AlertDialog
+        isOpen={dialogs.error}
+        onClose={() => closeDialog("error")}
+        title="Gagal Update Bidang"
+        message={dialogMessage}
+        type="error"
       />
     </div>
   );

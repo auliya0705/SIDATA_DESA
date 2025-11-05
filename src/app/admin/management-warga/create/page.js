@@ -5,16 +5,33 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import WargaForm from "@/components/admin/WargaForm";
+import AlertDialog from "@/components/ui/AlertDialog";
 
 export default function CreateWargaPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
+  // Dialog states
+  const [dialogs, setDialogs] = useState({
+    success: false,
+    error: false,
+  });
+  const [dialogMessage, setDialogMessage] = useState("");
+
+  const closeDialog = (dialogName) => {
+    setDialogs({ ...dialogs, [dialogName]: false });
+  };
+
+  const handleSuccessClose = () => {
+    closeDialog("success");
+    router.push("/admin/management-warga");
+  };
+
   const handleSubmit = async (formData) => {
     setLoading(true);
 
     try {
-      // --- Build FormData for upload ---
+      // Build FormData for upload
       const submitData = new FormData();
 
       Object.keys(formData).forEach((key) => {
@@ -30,22 +47,22 @@ export default function CreateWargaPage() {
         }
       });
 
-      // --- POST request tanpa Content-Type manual (biar browser set boundary otomatis) ---
+      // POST request without manual Content-Type (let browser set boundary)
       const response = await fetch("/api/staff/proposals/warga", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-          Accept: "application/json", // <- penting agar Laravel balas JSON
+          Accept: "application/json",
         },
         body: submitData,
       });
 
-      // --- Deteksi tipe response ---
+      // Detect response type
       const contentType = response.headers.get("content-type") || "";
       const responseText = await response.text();
 
       if (!response.ok) {
-        // Error: parse JSON kalau bisa
+        // Error: parse JSON if possible
         let msg = `HTTP ${response.status}`;
         if (contentType.includes("application/json")) {
           try {
@@ -60,7 +77,7 @@ export default function CreateWargaPage() {
         throw new Error(msg);
       }
 
-      // --- Hanya parse JSON jika benar-benar JSON ---
+      // Only parse JSON if it's actually JSON
       let result;
       if (contentType.includes("application/json")) {
         result = JSON.parse(responseText);
@@ -70,14 +87,15 @@ export default function CreateWargaPage() {
         );
       }
 
-      // --- Success ---
-      alert(
+      // Success
+      setDialogMessage(
         "Proposal warga berhasil dibuat! Menunggu persetujuan Kepala Desa."
       );
-      router.push("/admin/management-warga");
+      setDialogs({ ...dialogs, success: true });
     } catch (error) {
       console.error("❌ Create error:", error);
-      alert("Gagal membuat proposal: " + error.message);
+      setDialogMessage("Gagal membuat proposal: " + error.message);
+      setDialogs({ ...dialogs, error: true });
     } finally {
       setLoading(false);
     }
@@ -107,6 +125,23 @@ export default function CreateWargaPage() {
 
       {/* Form */}
       <WargaForm mode="create" onSubmit={handleSubmit} loading={loading} />
+
+      {/* Custom Dialogs */}
+      <AlertDialog
+        isOpen={dialogs.success}
+        onClose={handleSuccessClose}
+        title="Berhasil!"
+        message={dialogMessage}
+        type="success"
+      />
+
+      <AlertDialog
+        isOpen={dialogs.error}
+        onClose={() => closeDialog("error")}
+        title="Gagal Membuat Proposal"
+        message={dialogMessage}
+        type="error"
+      />
     </div>
   );
 }
