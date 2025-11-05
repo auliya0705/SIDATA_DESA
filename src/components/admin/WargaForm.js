@@ -1,18 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, X, Image as ImageIcon } from "lucide-react";
 
-export default function WargaForm({
-  initialData = null,
-  mode = "create",
-  onSubmit,
-  loading = false,
-}) {
-  const router = useRouter();
-  const [formData, setFormData] = useState(
-    initialData || {
+function sanitizeInitial(data) {
+  if (!data) {
+    return {
       nama_lengkap: "",
       jenis_kelamin: "",
       nik: "",
@@ -26,8 +20,36 @@ export default function WargaForm({
       alamat_lengkap: "",
       keterangan: "",
       foto_ktp: null,
-    }
-  );
+      foto_ktp_existing: null,
+    };
+  }
+  return {
+    nama_lengkap: data.nama_lengkap ?? "",
+    jenis_kelamin: data.jenis_kelamin ?? "",
+    nik: data.nik ?? "",
+    tempat_lahir: data.tempat_lahir ?? "",
+    tanggal_lahir: data.tanggal_lahir ?? "",
+    agama: data.agama ?? "",
+    status_perkawinan: data.status_perkawinan ?? "",
+    pendidikan_terakhir: data.pendidikan_terakhir ?? "",
+    pekerjaan: data.pekerjaan ?? "",
+    kewarganegaraan: data.kewarganegaraan ?? "WNI",
+    alamat_lengkap: data.alamat_lengkap ?? "",
+    keterangan: data.keterangan ?? "",
+    foto_ktp: null,
+    foto_ktp_existing: data.foto_ktp_existing ?? null,
+  };
+}
+
+export default function WargaForm({
+  initialData = null,
+  mode = "create",
+  onSubmit,
+  loading = false,
+}) {
+  const router = useRouter();
+
+  const [formData, setFormData] = useState(sanitizeInitial(initialData));
 
   const [previewImage, setPreviewImage] = useState(
     initialData?.foto_ktp_existing
@@ -35,39 +57,42 @@ export default function WargaForm({
       : null
   );
 
+  // Saat initialData berubah (halaman edit), set formData & preview ulang
+  useEffect(() => {
+    const sanitized = sanitizeInitial(initialData);
+    setFormData(sanitized);
+    setPreviewImage(
+      sanitized.foto_ktp_existing
+        ? `http://127.0.0.1:8000/storage/${sanitized.foto_ktp_existing}`
+        : null
+    );
+  }, [initialData]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: value ?? "",
     }));
   };
 
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (file) {
-      // Validate file type
       if (!file.type.startsWith("image/")) {
         alert("File harus berupa gambar!");
         return;
       }
-
-      // Validate file size (max 2MB)
       if (file.size > 2 * 1024 * 1024) {
         alert("Ukuran file maksimal 2MB!");
         return;
       }
-
       setFormData((prev) => ({
         ...prev,
         foto_ktp: file,
       }));
-
-      // Create preview
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviewImage(reader.result);
-      };
+      reader.onloadend = () => setPreviewImage(reader.result);
       reader.readAsDataURL(file);
     }
   };
@@ -78,8 +103,8 @@ export default function WargaForm({
       foto_ktp: null,
     }));
     setPreviewImage(
-      initialData?.foto_ktp_existing
-        ? `http://127.0.0.1:8000/storage/${initialData.foto_ktp_existing}`
+      formData.foto_ktp_existing
+        ? `http://127.0.0.1:8000/storage/${formData.foto_ktp_existing}`
         : null
     );
   };
@@ -87,13 +112,11 @@ export default function WargaForm({
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validation
-    if (formData.nik.length !== 16) {
-      alert("NIK harus 16 digit!");
+    if (!/^\d{16}$/.test(formData.nik ?? "")) {
+      alert("NIK harus 16 digit angka!");
       return;
     }
 
-    // Call parent's onSubmit
     if (onSubmit) {
       await onSubmit(formData);
     }
@@ -120,7 +143,7 @@ export default function WargaForm({
             <input
               type="text"
               name="nama_lengkap"
-              value={formData.nama_lengkap}
+              value={formData.nama_lengkap ?? ""}
               onChange={handleChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
               required
@@ -135,10 +158,10 @@ export default function WargaForm({
             <input
               type="text"
               name="nik"
-              value={formData.nik}
+              value={formData.nik ?? ""}
               onChange={handleChange}
               maxLength={16}
-              pattern="[0-9]{16}"
+              pattern="\d{16}"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent font-mono"
               placeholder="3201123456781221"
               required
@@ -156,7 +179,7 @@ export default function WargaForm({
               </label>
               <select
                 name="jenis_kelamin"
-                value={formData.jenis_kelamin}
+                value={formData.jenis_kelamin ?? ""}
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                 required
@@ -173,16 +196,17 @@ export default function WargaForm({
               </label>
               <select
                 name="status_perkawinan"
-                value={formData.status_perkawinan}
+                value={formData.status_perkawinan ?? ""}
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                 required
               >
                 <option value="">-- Pilih --</option>
-                <option value="BELUM_KAWIN">Belum Kawin</option>
+                {/* Sesuai enum di DB */}
+                <option value="BELUM KAWIN">Belum Kawin</option>
                 <option value="KAWIN">Kawin</option>
-                <option value="CERAI_HIDUP">Cerai Hidup</option>
-                <option value="CERAI_MATI">Cerai Mati</option>
+                <option value="CERAI HIDUP">Cerai Hidup</option>
+                <option value="CERAI MATI">Cerai Mati</option>
               </select>
             </div>
           </div>
@@ -196,7 +220,7 @@ export default function WargaForm({
               <input
                 type="text"
                 name="tempat_lahir"
-                value={formData.tempat_lahir}
+                value={formData.tempat_lahir ?? ""}
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                 placeholder="Contoh: Semarang"
@@ -211,7 +235,7 @@ export default function WargaForm({
               <input
                 type="date"
                 name="tanggal_lahir"
-                value={formData.tanggal_lahir}
+                value={formData.tanggal_lahir ?? ""}
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                 required
@@ -226,7 +250,7 @@ export default function WargaForm({
             </label>
             <select
               name="agama"
-              value={formData.agama}
+              value={formData.agama ?? ""}
               onChange={handleChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
               required
@@ -257,7 +281,7 @@ export default function WargaForm({
             </label>
             <select
               name="pendidikan_terakhir"
-              value={formData.pendidikan_terakhir}
+              value={formData.pendidikan_terakhir ?? ""}
               onChange={handleChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
             >
@@ -282,7 +306,7 @@ export default function WargaForm({
             <input
               type="text"
               name="pekerjaan"
-              value={formData.pekerjaan}
+              value={formData.pekerjaan ?? ""}
               onChange={handleChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
               placeholder="Contoh: PNS, Petani, Wiraswasta"
@@ -305,7 +329,7 @@ export default function WargaForm({
             </label>
             <select
               name="kewarganegaraan"
-              value={formData.kewarganegaraan}
+              value={formData.kewarganegaraan ?? "WNI"}
               onChange={handleChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
               required
@@ -322,7 +346,7 @@ export default function WargaForm({
             </label>
             <textarea
               name="alamat_lengkap"
-              value={formData.alamat_lengkap}
+              value={formData.alamat_lengkap ?? ""}
               onChange={handleChange}
               rows={3}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
@@ -405,7 +429,7 @@ export default function WargaForm({
           </label>
           <textarea
             name="keterangan"
-            value={formData.keterangan}
+            value={formData.keterangan ?? ""}
             onChange={handleChange}
             rows={4}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"

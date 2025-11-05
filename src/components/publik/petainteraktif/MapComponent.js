@@ -397,7 +397,7 @@ export default function MapComponent({ filter }) {
       scrollWheelZoom={true} //Enable scroll zoom
       zoomControl={true} //Show zoom buttons
       minZoom={14} //Min zoom level
-      maxZoom={20} //Max zoom level
+      maxZoom={18} //Max zoom level
       style={{ height: "100vh", width: "100%" }}
       className="z-0"
     >

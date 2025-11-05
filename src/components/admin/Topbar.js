@@ -13,8 +13,8 @@ export default function Topbar() {
 
   // Get page title and breadcrumb based on pathname
   const getPageInfo = () => {
-    // Dashboard
-    if (pathname === "/admin/dashboard") {
+    // Dashboard (cover keduanya)
+    if (pathname === "/admin" || pathname === "/admin/dashboard") {
       return { title: "Dashboard", breadcrumb: "Dashboard" };
     }
 
@@ -81,6 +81,17 @@ export default function Topbar() {
       };
     }
 
+    // ✅ Riwayat Proposal (BARU)
+    if (pathname === "/admin/riwayat-proposal") {
+      return { title: "Riwayat Proposal", breadcrumb: "Riwayat Proposal" };
+    }
+    if (pathname.match(/\/admin\/riwayat-proposal\/detail\/.+/)) {
+      return {
+        title: "Riwayat Proposal",
+        breadcrumb: "Riwayat Proposal / Detail",
+      };
+    }
+
     // Approval
     if (pathname === "/admin/approval") {
       return { title: "Approval", breadcrumb: "Approval" };
@@ -144,7 +155,6 @@ export default function Topbar() {
             </div>
           </button>
 
-          {/* Dropdown Menu */}
           {isDropdownOpen && (
             <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
               <div className="px-4 py-3 border-b border-gray-100">

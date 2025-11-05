@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -23,100 +23,172 @@ export default function ManagementWargaPage() {
   const [wargaData, setWargaData] = useState([]);
   const [pagination, setPagination] = useState(null);
 
-  // Fetch data on mount and when page changes
-  useEffect(() => {
-    loadWargaData();
-  }, [currentPage, rowsPerPage]);
+  // ---- Guard agar useEffect initial tidak 2x di dev (StrictMode)
+  const didMountRef = useRef(false);
 
-  const loadWargaData = async () => {
-    try {
-      const params = {
-        page: currentPage,
-        per_page: rowsPerPage,
-      };
+  // Loader TIDAK tergantung searchQuery, agar tidak refetch tiap ketik
+  const loadWargaData = useCallback(
+    async ({ page = currentPage, perPage = rowsPerPage, search } = {}) => {
+      try {
+        const params = {
+          page,
+          per_page: perPage,
+        };
+        if (typeof search === "string" && search.trim() !== "") {
+          params.search = search.trim();
+        }
 
-      if (searchQuery) {
-        params.search = searchQuery;
+        const response = await getWargaList(params);
+
+        // --- Normalisasi: approval (create/delete/update) -> isi nama_lengkap/nik/id dari payload/snapshot
+        const rows = (response.data || []).map((row) => {
+          const payload =
+            typeof row.payload === "string"
+              ? (() => {
+                  try {
+                    return JSON.parse(row.payload);
+                  } catch {
+                    return null;
+                  }
+                })()
+              : row.payload || null;
+
+          const snap = payload?.snapshot || null;
+          const action = row.action || ""; // "create" | "delete" | "update"
+
+          let nama = row.nama_lengkap ?? "-";
+          let nik = row.nik ?? "-";
+
+          if (action === "create") {
+            // Data warga baru ada langsung di payload.*
+            nama = row.nama_lengkap ?? payload?.nama_lengkap ?? "-";
+            nik = row.nik ?? payload?.nik ?? "-";
+          } else if (action === "delete") {
+            // Hapus: idealnya pakai snapshot jika ada
+            nama = row.nama_lengkap ?? snap?.nama_lengkap ?? "-";
+            nik = row.nik ?? snap?.nik ?? "-";
+          } else if (action === "update") {
+            // Update: coba after -> before
+            nama =
+              row.nama_lengkap ??
+              payload?.after?.nama_lengkap ??
+              payload?.before?.nama_lengkap ??
+              "-";
+            nik =
+              row.nik ??
+              payload?.after?.nik ??
+              payload?.before?.nik ??
+              "-";
+          } else {
+            // Bukan approval / fallback (mis. list warga master)
+            nama = row.nama_lengkap ?? "-";
+            nik = row.nik ?? "-";
+          }
+
+          // id untuk aksi (detail/edit/delete)
+          // - delete/update: pakai target_id (id warga asli)
+          // - create: target_id biasanya null -> fallback ke row.id (id approval)
+          const idForAction = row.target_id ?? row.id;
+
+          return {
+            ...row,
+            id: idForAction,
+            nama_lengkap: nama,
+            nik: nik,
+          };
+        });
+
+        setWargaData(rows);
+        setPagination({
+          current_page: response.current_page,
+          last_page: response.last_page,
+          total: response.total,
+          per_page: response.per_page,
+        });
+      } catch (err) {
+        console.error("Failed to load warga data:", err);
+        alert("Gagal memuat data warga: " + err.message);
       }
+    },
+    [currentPage, rowsPerPage, getWargaList]
+  );
 
-      const response = await getWargaList(params);
-
-      // Laravel pagination structure
-      setWargaData(response.data || []);
-      setPagination({
-        current_page: response.current_page,
-        last_page: response.last_page,
-        total: response.total,
-        per_page: response.per_page,
-      });
-    } catch (err) {
-      console.error("Failed to load warga data:", err);
-      alert("Gagal memuat data warga: " + err.message);
+  // Refetch saat page/rows berubah (bukan saat searchQuery berubah)
+  useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true; // cegah double-run initial di dev
     }
-  };
+    loadWargaData({
+      page: currentPage,
+      perPage: rowsPerPage,
+      search: searchQuery,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, rowsPerPage]); // <- searchQuery sengaja tidak dimasukkan
 
   const handleSearch = (e) => {
     setSearchQuery(e.target.value);
-    // Reset to page 1 when searching
-    setCurrentPage(1);
+    setCurrentPage(1); // reset halaman saat mengubah query
+    // Tidak memanggil loadWargaData di sini agar tidak refetch tiap ketik
   };
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    loadWargaData();
+    loadWargaData({ page: 1, perPage: rowsPerPage, search: searchQuery });
   };
 
   const handleExport = () => {
-    // TODO: Implement export to Excel
     alert("Fitur ekspor data akan segera tersedia");
   };
 
   const handleDelete = async (id) => {
-    if (!confirm("Yakin ingin menghapus data warga ini?")) {
+    if (!id) {
+      alert("ID tidak valid.");
       return;
     }
+    if (!confirm("Yakin ingin menghapus data warga ini?")) return;
 
     try {
       await deleteWarga(id);
-      alert("Data warga berhasil dihapus!");
-      loadWargaData(); // Reload data
+      alert("Proposal hapus dibuat. Menunggu persetujuan Kepala Desa.");
+
+      // Jika hanya 1 baris tersisa di halaman ini, mundurkan halaman 1 langkah
+      if (wargaData.length === 1 && currentPage > 1) {
+        setCurrentPage((p) => p - 1);
+      } else {
+        // reload dengan query saat ini
+        loadWargaData({
+          page: currentPage,
+          perPage: rowsPerPage,
+          search: searchQuery,
+        });
+      }
     } catch (err) {
       console.error("Delete error:", err);
       alert("Gagal menghapus data: " + err.message);
     }
   };
 
+  // total pages untuk pagination
   const totalPages = pagination?.last_page || 1;
 
   const renderPagination = () => {
     const pages = [];
-
-    // Always show first page
     pages.push(1);
 
-    if (currentPage > 3) {
-      pages.push("...");
-    }
+    if (currentPage > 3) pages.push("...");
 
-    // Show pages around current page
     for (
       let i = Math.max(2, currentPage - 1);
       i <= Math.min(totalPages - 1, currentPage + 1);
       i++
     ) {
-      if (!pages.includes(i)) {
-        pages.push(i);
-      }
+      if (!pages.includes(i)) pages.push(i);
     }
 
-    if (currentPage < totalPages - 2) {
-      pages.push("...");
-    }
+    if (currentPage < totalPages - 2) pages.push("...");
 
-    // Always show last page
-    if (totalPages > 1 && !pages.includes(totalPages)) {
-      pages.push(totalPages);
-    }
+    if (totalPages > 1 && !pages.includes(totalPages)) pages.push(totalPages);
 
     return pages;
   };
@@ -126,7 +198,13 @@ export default function ManagementWargaPage() {
       <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
         <p className="text-red-600">Error: {error}</p>
         <button
-          onClick={loadWargaData}
+          onClick={() =>
+            loadWargaData({
+              page: currentPage,
+              perPage: rowsPerPage,
+              search: searchQuery,
+            })
+          }
           className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
         >
           Coba Lagi
@@ -142,21 +220,13 @@ export default function ManagementWargaPage() {
         <h2 className="text-xl font-semibold text-gray-800">
           Data Penduduk Desa
         </h2>
-        {pagination && (
-          <p className="text-sm text-gray-600 mt-1">
-            Total: {pagination.total} warga
-          </p>
-        )}
       </div>
 
       {/* Action Bar */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           {/* Search */}
-          <form
-            onSubmit={handleSearchSubmit}
-            className="relative w-full md:w-96"
-          >
+          <form onSubmit={handleSearchSubmit} className="relative w-full md:w-96">
             <Search
               className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
               size={20}
@@ -202,7 +272,12 @@ export default function ManagementWargaPage() {
       )}
 
       {/* Table */}
-      {!loading && <WargaTable data={wargaData} onDelete={handleDelete} />}
+      {!loading && (
+        <WargaTable
+          data={wargaData}
+          onDelete={handleDelete}
+        />
+      )}
 
       {/* Empty State */}
       {!loading && wargaData.length === 0 && (

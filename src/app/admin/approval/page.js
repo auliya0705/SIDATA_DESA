@@ -1,3 +1,4 @@
+// src/app/admin/approval/page.js
 "use client";
 
 import { useState, useEffect } from "react";
@@ -15,11 +16,15 @@ import {
 import ApprovalTable from "@/components/admin/ApprovalTable";
 import { getCurrentUser } from "@/lib/auth";
 import { useProposal } from "@/hooks/useProposal";
+import { useWarga } from "@/hooks/useWarga";
+import { apiGet } from "@/lib/api";
+import { API_ENDPOINTS } from "@/lib/config";
 
 export default function ApprovalPage() {
   const router = useRouter();
   const { loading, error, getProposalList, approveProposal, rejectProposal } =
     useProposal();
+  const { checkNikUnique, getWargaById } = useWarga();
 
   // State management
   const [searchQuery, setSearchQuery] = useState("");
@@ -47,7 +52,73 @@ export default function ApprovalPage() {
     rejected: 0,
   });
 
-  // Check if user is Kepala Desa
+  // ---- helpers
+  const parseMaybeJson = (v) => {
+    if (typeof v !== "string") return v;
+    try {
+      return JSON.parse(v);
+    } catch {
+      return null;
+    }
+  };
+
+  // Ambil NIK & ignoreId dari row proposal (versi robust)
+  const pickNikAndIgnoreId = (row) => {
+    const payload = parseMaybeJson(row?.payload) ?? row?.payload ?? {};
+    const action = String(row?.action || "").toLowerCase();
+
+    const before = payload?.before ?? null;
+    const after = payload?.after ?? null;
+    const snapshot = payload?.snapshot ?? null;
+
+    let nikProposed = null;
+    let ignoreId = null;
+
+    if (action === "update") {
+      nikProposed = after?.nik ?? payload?.nik ?? before?.nik ?? row?.nik ?? null;
+      ignoreId = before?.id ?? payload?.id ?? row?.target_id ?? row?.id ?? null;
+    } else if (action === "create") {
+      nikProposed = payload?.nik ?? row?.nik ?? null;
+      ignoreId = null;
+    } else if (action === "delete") {
+      nikProposed = snapshot?.nik ?? row?.nik ?? null;
+      ignoreId = snapshot?.id ?? row?.target_id ?? row?.id ?? null;
+    } else {
+      nikProposed = payload?.nik ?? row?.nik ?? null;
+      ignoreId = row?.target_id ?? row?.id ?? null;
+    }
+
+    return { nikProposed, ignoreId };
+  };
+
+  // Fallback preview untuk BIDANG lama (tanpa preview_pemilik di payload)
+  async function fetchBidangPreview(bidangId) {
+    try {
+      const d = await apiGet(API_ENDPOINTS.BIDANG.SHOW(bidangId));
+      const nik = d?.tanah?.pemilik?.nik ?? null;
+      const nama = d?.tanah?.pemilik?.nama ?? d?.tanah?.pemilik?.nama_lengkap ?? null;
+      const tanah_id = d?.tanah?.id ?? null;
+      const nomor_urut = d?.tanah?.nomor_urut ?? null;
+      return { nik, nama, tanah_id, nomor_urut };
+    } catch {
+      return null;
+    }
+  }
+
+  // Fallback preview untuk TANAH (agar list delete/update tanah menampilkan pemilik)
+  async function fetchTanahPreview(tanahId) {
+    try {
+      const d = await apiGet(API_ENDPOINTS.TANAH.SHOW(tanahId));
+      const nik = d?.pemilik?.nik ?? null;
+      const nama = d?.pemilik?.nama_lengkap ?? d?.pemilik_nama ?? null;
+      const nomor_urut = d?.nomor_urut ?? null;
+      return { nik, nama, nomor_urut };
+    } catch {
+      return null;
+    }
+  }
+
+  // Check role Kepala
   useEffect(() => {
     const user = getCurrentUser();
     if (!user || (user.role !== "kepala_desa" && user.role !== "kepala")) {
@@ -59,6 +130,7 @@ export default function ApprovalPage() {
   // Fetch proposals when filters change
   useEffect(() => {
     fetchProposals();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, rowsPerPage, selectedModule, selectedStatus, searchQuery]);
 
   const fetchProposals = async () => {
@@ -69,29 +141,170 @@ export default function ApprovalPage() {
         page: currentPage,
         per_page: rowsPerPage,
       };
-
-      // Add filters
       if (selectedModule) params.module = selectedModule;
       if (selectedStatus) params.status = selectedStatus;
       if (searchQuery.trim()) params.search = searchQuery.trim();
 
       const response = await getProposalList(params);
+      const rows = response?.data ?? [];
 
-      // Handle Laravel pagination structure
-      if (response.data) {
-        setProposals(response.data);
-        setPagination({
-          total: response.total || 0,
-          per_page: response.per_page || 10,
-          current_page: response.current_page || 1,
-          last_page: response.last_page || 1,
+      // 1) Ambil BEFORE warga untuk baris update warga
+      const wargaUpdateRows = rows.filter(
+        (r) => r.module === "warga" && r.action === "update" && r.target_id
+      );
+      const beforeMap = {};
+      await Promise.all(
+        wargaUpdateRows.map(async (r) => {
+          try {
+            const before = await getWargaById(r.target_id);
+            beforeMap[r.target_id] = before || null;
+          } catch {
+            beforeMap[r.target_id] = null;
+          }
+        })
+      );
+
+      // 2) Ambil fallback preview BIDANG/TANAH yang belum punya preview di payload
+      const bidangNeeding = rows.filter((r) => {
+        if (r.module !== "bidang" || !r.target_id) return false;
+        const payload = parseMaybeJson(r.payload) ?? r.payload ?? {};
+        return !payload?.preview_pemilik;
+      });
+
+      const tanahNeeding = rows.filter((r) => {
+        if (r.module !== "tanah" || !r.target_id) return false;
+        const payload = parseMaybeJson(r.payload) ?? r.payload ?? {};
+        return !(payload?.preview_pemilik || payload?.snapshot);
+      });
+
+      const bidangPreviewMap = {};
+      const tanahPreviewMap = {};
+
+      await Promise.all([
+        ...bidangNeeding.map(async (r) => {
+          const prev = await fetchBidangPreview(r.target_id);
+          if (prev) bidangPreviewMap[r.target_id] = prev;
+        }),
+        ...tanahNeeding.map(async (r) => {
+          const prev = await fetchTanahPreview(r.target_id);
+          if (prev) tanahPreviewMap[r.target_id] = prev;
+        }),
+      ]);
+
+      // 3) Normalisasi baris
+      const proposalRowsNormalized = rows.map((row) => {
+        const payload = parseMaybeJson(row.payload) ?? row.payload ?? {};
+        const snap = payload?.snapshot ?? null;
+
+        // preview untuk bidang/tanah
+        let pv = null;
+        if (row.module === "bidang") {
+          pv = payload?.preview_pemilik ?? bidangPreviewMap[row.target_id] ?? null;
+        } else if (row.module === "tanah") {
+          pv =
+            payload?.preview_pemilik ??
+            snap ??
+            tanahPreviewMap[row.target_id] ??
+            null;
+        }
+
+        let nik = row.nik ?? null;
+        let nama = row.nama_lengkap ?? payload?.nama_lengkap ?? null;
+        if (pv) {
+          if (pv.nik || pv.nama || pv.nama_lengkap) {
+            nik = pv.nik ?? nik;
+            nama = pv.nama ?? pv.nama_lengkap ?? nama;
+          } else if (pv.pemilik) {
+            nik = pv.pemilik.nik ?? nik;
+            nama = pv.pemilik.nama ?? pv.pemilik.nama_lengkap ?? nama;
+          }
+        }
+
+        // khusus warga/update → tampilkan old → new bila berubah
+        if (row.module === "warga" && row.action === "update") {
+          const before = beforeMap[row.target_id] || {};
+          const newNik = payload?.nik ?? null;
+          const newNama = payload?.nama_lengkap ?? null;
+
+          const oldNik = before?.nik ?? null;
+          const oldNama = before?.nama_lengkap ?? null;
+
+          const display_nik =
+            newNik && oldNik && String(newNik) !== String(oldNik)
+              ? `${oldNik} → ${newNik}`
+              : newNik ?? oldNik ?? "-";
+
+          const display_nama =
+            newNama && oldNama && String(newNama) !== String(oldNama)
+              ? `${oldNama} → ${newNama}`
+              : newNama ?? oldNama ?? "-";
+
+          return {
+            ...row,
+            _before: before,
+            _after: payload || {},
+            nik: display_nik ?? "-",
+            nama_lengkap: display_nama ?? "-",
+            display_nik: display_nik ?? "-",
+            display_nama: display_nama ?? "-",
+            id: row.id,
+          };
+        }
+
+        // default untuk create/update/delete non-warga
+        switch (row.action) {
+          case "create":
+            nik = nik ?? payload?.nik ?? null;
+            nama = nama ?? payload?.nama_lengkap ?? null;
+            break;
+          case "update":
+            nik =
+              nik ??
+              payload?.after?.nik ??
+              payload?.before?.nik ??
+              payload?.nik ??
+              null;
+            nama =
+              nama ??
+              payload?.after?.nama_lengkap ??
+              payload?.before?.nama_lengkap ??
+              payload?.nama_lengkap ??
+              null;
+            break;
+          case "delete":
+              nik = nik ?? snap?.nik ?? snap?.pemilik?.nik ?? null;
+              nama = nama ?? snap?.nama_lengkap ?? snap?.pemilik?.nama_lengkap ?? snap?.pemilik?.nama ?? null;
+            break;
+        }
+
+        return {
+          ...row,
+          nik: nik ?? "-",
+          nama_lengkap: nama ?? "-",
+          display_nik: nik ?? "-",
+          display_nama: nama ?? "-",
+          id: row.id,
+        };
+      });
+
+      setProposals(proposalRowsNormalized);
+      setPagination({
+        total: response?.total || 0,
+        per_page: response?.per_page || rowsPerPage,
+        current_page: response?.current_page || currentPage,
+        last_page: response?.last_page || 1,
+      });
+
+      // gunakan stats dari backend bila ada, kalau tidak hitung lokal
+      if (response?.stats) {
+        setStats({
+          pending: response.stats.pending ?? 0,
+          approved: response.stats.approved ?? 0,
+          rejected: response.stats.rejected ?? 0,
         });
       } else {
-        setProposals([]);
+        calculateStats(proposalRowsNormalized);
       }
-
-      // Calculate stats (you might want to get this from a separate endpoint)
-      calculateStats(response.data || []);
     } catch (err) {
       console.error("Error fetching proposals:", err);
     } finally {
@@ -110,31 +323,57 @@ export default function ApprovalPage() {
   const handleSearch = (e) => {
     const value = e.target.value;
     setSearchQuery(value);
-    setCurrentPage(1); // Reset to first page on search
+    setCurrentPage(1);
   };
 
-  const handleApprove = async (id) => {
+  // ========= APPROVE with preflight NIK duplicate check =========
+  const handleApprove = async (row) => {
     if (!confirm("Yakin ingin menyetujui pengajuan ini?")) return;
-
     try {
-      const response = await approveProposal(id);
-      alert(response.message || "Data berhasil disetujui!");
-      await fetchProposals(); // Refresh data
+      if (
+        row?.module === "warga" &&
+        (row?.action === "create" || row?.action === "update")
+      ) {
+        const { nikProposed, ignoreId } = pickNikAndIgnoreId(row);
+        if (nikProposed) {
+          const { exists, conflictId } = await checkNikUnique(
+            nikProposed,
+            ignoreId
+          );
+          if (exists) {
+            alert(
+              [
+                "Tidak bisa approve: NIK sudah terpakai di database.",
+                `• NIK: ${nikProposed}`,
+                conflictId ? `• ID konflik: ${conflictId}` : null,
+                "",
+                "Silakan minta pengusul mengganti NIK atau lakukan EDIT data yang benar.",
+              ]
+                .filter(Boolean)
+                .join("\n")
+            );
+            return;
+          }
+        }
+      }
+
+      const res = await approveProposal(row);
+      alert(res?.message || "Data berhasil disetujui!");
+      await fetchProposals();
     } catch (err) {
       alert(err.message || "Gagal menyetujui data");
+      await fetchProposals();
     }
   };
 
-  const handleReject = async (id) => {
+  const handleReject = async (row) => {
     const reason = prompt("Alasan penolakan:");
     if (!reason || !reason.trim()) return;
-
     try {
-      const response = await rejectProposal(id, reason);
-      alert(response.message || "Data berhasil ditolak!");
-      await fetchProposals(); // Refresh data
+      const res = await rejectProposal(row, reason);
+      alert(res?.message || "Data berhasil ditolak!");
+      await fetchProposals();
     } catch (err) {
-      // Handle 404 - endpoint not ready
       if (err.message.includes("404")) {
         alert(
           "Fitur reject belum tersedia di backend. Silakan hubungi administrator."
@@ -150,6 +389,7 @@ export default function ApprovalPage() {
     setShowDetailModal(true);
   };
 
+  // ---- Pagination helper
   const renderPagination = () => {
     const pages = [];
     const totalPages = pagination.last_page;
@@ -169,7 +409,6 @@ export default function ApprovalPage() {
     return pages;
   };
 
-  // Format module name for display
   const getModuleName = (module) => {
     const moduleMap = {
       warga: "Data Warga",
@@ -179,7 +418,6 @@ export default function ApprovalPage() {
     return moduleMap[module] || module;
   };
 
-  // Format action name for display
   const getActionName = (action) => {
     const actionMap = {
       create: "Tambah Data",
@@ -189,7 +427,7 @@ export default function ApprovalPage() {
     return actionMap[action] || action;
   };
 
-  // Prevent access if not Kepala Desa
+  // Prevent access if not Kepala Desa (server guard di atas tetap dipertahankan)
   const user = getCurrentUser();
   if (!user || (user.role !== "kepala_desa" && user.role !== "kepala")) {
     return (
@@ -205,18 +443,77 @@ export default function ApprovalPage() {
     );
   }
 
+  // helper untuk render diff di modal (khusus warga/update) — SATU versi saja
+  const renderWargaDiff = (row) => {
+    if (row?.module !== "warga" || row?.action !== "update") return null;
+    const before = row?._before || {};
+    const delta = row?._after || {};
+
+    const fields = [
+      "nik",
+      "nama_lengkap",
+      "jenis_kelamin",
+      "alamat_lengkap",
+      "pekerjaan",
+      "agama",
+      "status_perkawinan",
+      "pendidikan_terakhir",
+      "kewarganegaraan",
+      "tanggal_lahir",
+      "tempat_lahir",
+      "keterangan",
+    ];
+
+    const changed = fields
+      .map((k) => {
+        const oldV = before?.[k] ?? null;
+        const newV = k in delta ? delta[k] : undefined; // hanya tampilkan kalau memang dikirim
+        if (typeof newV === "undefined") return null;
+        const isChanged = String(oldV ?? "") !== String(newV ?? "");
+        return { k, oldV, newV, isChanged };
+      })
+      .filter(Boolean);
+
+    if (!changed.length) return null;
+
+    return (
+      <div className="mt-4">
+        <p className="text-sm text-gray-600 mb-2 font-semibold">
+          Perubahan (before → after):
+        </p>
+        <div className="overflow-x-auto">
+          <table className="min-w-full border border-gray-200 rounded">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="text-left text-xs px-3 py-2 border-b">Field</th>
+                <th className="text-left text-xs px-3 py-2 border-b">Before</th>
+                <th className="text-left text-xs px-3 py-2 border-b">After</th>
+              </tr>
+            </thead>
+            <tbody>
+              {changed.map(({ k, oldV, newV, isChanged }) => (
+                <tr key={k} className={isChanged ? "bg-yellow-50" : ""}>
+                  <td className="text-sm px-3 py-2 border-b whitespace-nowrap">{k}</td>
+                  <td className="text-sm px-3 py-2 border-b">{String(oldV ?? "-")}</td>
+                  <td className="text-sm px-3 py-2 border-b">{String(newV ?? "-")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Error Alert */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start space-x-3">
-          <AlertCircle
-            className="text-red-600 flex-shrink-0 mt-0.5"
-            size={20}
-          />
+          <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={20} />
           <div>
             <p className="text-red-800 font-medium">Terjadi Kesalahan</p>
-            <p className="text-red-600 text-sm">{error}</p>
+            <p className="text-red-600 text-sm whitespace-pre-line">{error}</p>
           </div>
         </div>
       )}
@@ -255,9 +552,7 @@ export default function ApprovalPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600 mb-1">Ditolak</p>
-              <p className="text-3xl font-bold text-red-600">
-                {stats.rejected}
-              </p>
+              <p className="text-3xl font-bold text-red-600">{stats.rejected}</p>
             </div>
             <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
               <XCircle className="text-red-600" size={24} />
@@ -270,17 +565,13 @@ export default function ApprovalPage() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex items-center space-x-3">
-            <h2 className="text-xl font-semibold text-gray-800">
-              Approval Data
-            </h2>
+            <h2 className="text-xl font-semibold text-gray-800">Approval Data</h2>
             {isRefreshing && (
               <Loader2 className="animate-spin text-teal-600" size={20} />
             )}
           </div>
 
-          {/* Filters */}
           <div className="flex flex-wrap gap-3">
-            {/* Module Filter */}
             <select
               value={selectedModule}
               onChange={(e) => {
@@ -295,7 +586,6 @@ export default function ApprovalPage() {
               <option value="bidang">Data Bidang</option>
             </select>
 
-            {/* Status Filter */}
             <select
               value={selectedStatus}
               onChange={(e) => {
@@ -316,7 +606,6 @@ export default function ApprovalPage() {
       {/* Action Bar */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-          {/* Search */}
           <div className="relative w-full md:w-96">
             <Search
               className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
@@ -331,7 +620,6 @@ export default function ApprovalPage() {
             />
           </div>
 
-          {/* Refresh Button */}
           <button
             onClick={fetchProposals}
             disabled={isRefreshing}
@@ -369,6 +657,7 @@ export default function ApprovalPage() {
           onViewDetail={handleViewDetail}
           getModuleName={getModuleName}
           getActionName={getActionName}
+          showId={false}   // <-- sembunyikan kolom ID
         />
       )}
 
@@ -404,23 +693,20 @@ export default function ApprovalPage() {
                 <ChevronLeft size={18} />
               </button>
 
-              {renderPagination().map((page, index) => (
+              {renderPagination().map((page, idx) => (
                 <button
-                  key={index}
+                  key={idx}
                   onClick={() =>
                     typeof page === "number" && setCurrentPage(page)
                   }
                   disabled={page === "..."}
-                  className={`
-                    px-3 py-1 rounded text-sm
-                    ${
-                      page === currentPage
-                        ? "bg-teal-700 text-white"
-                        : page === "..."
-                        ? "cursor-default"
-                        : "hover:bg-gray-100"
-                    }
-                  `}
+                  className={`px-3 py-1 rounded text-sm ${
+                    page === currentPage
+                      ? "bg-teal-700 text-white"
+                      : page === "..."
+                      ? "cursor-default"
+                      : "hover:bg-gray-100"
+                  }`}
                 >
                   {page}
                 </button>
@@ -428,9 +714,7 @@ export default function ApprovalPage() {
 
               <button
                 onClick={() =>
-                  setCurrentPage(
-                    Math.min(pagination.last_page, currentPage + 1)
-                  )
+                  setCurrentPage(Math.min(pagination.last_page, currentPage + 1))
                 }
                 disabled={currentPage === pagination.last_page}
                 className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -457,9 +741,7 @@ export default function ApprovalPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4">
-              <h3 className="text-xl font-bold text-gray-800">
-                Detail Pengajuan
-              </h3>
+              <h3 className="text-xl font-bold text-gray-800">Detail Pengajuan</h3>
             </div>
 
             <div className="p-6 space-y-4">
@@ -467,9 +749,7 @@ export default function ApprovalPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-600">ID Proposal</p>
-                  <p className="font-medium text-gray-900">
-                    #{selectedItem.id}
-                  </p>
+                  <p className="font-medium text-gray-900">#{selectedItem.id}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Modul</p>
@@ -515,10 +795,10 @@ export default function ApprovalPage() {
                 </div>
               </div>
 
-              {/* Payload Data */}
+              {/* Payload Data (raw) */}
               <div>
                 <p className="text-sm text-gray-600 mb-2 font-semibold">
-                  Data yang Diajukan:
+                  Data yang Diajukan (raw):
                 </p>
                 <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                   <pre className="text-sm overflow-auto whitespace-pre-wrap">
@@ -526,6 +806,9 @@ export default function ApprovalPage() {
                   </pre>
                 </div>
               </div>
+
+              {/* Diff khusus warga/update */}
+              {renderWargaDiff(selectedItem)}
 
               {/* Target ID if exists */}
               {selectedItem.target_id && (
@@ -544,16 +827,17 @@ export default function ApprovalPage() {
                 <>
                   <button
                     onClick={() => {
-                      handleReject(selectedItem.id);
+                      handleReject(selectedItem);
                       setShowDetailModal(false);
                     }}
                     className="px-6 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
                   >
                     Tolak
                   </button>
+
                   <button
                     onClick={() => {
-                      handleApprove(selectedItem.id);
+                      handleApprove(selectedItem);
                       setShowDetailModal(false);
                     }}
                     className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"

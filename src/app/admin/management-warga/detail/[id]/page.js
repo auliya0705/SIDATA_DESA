@@ -139,7 +139,7 @@ export default function DetailWargaPage() {
               {wargaData.foto_ktp ? (
                 <div className="relative w-32 h-32 rounded-lg overflow-hidden border-4 border-white shadow-lg">
                   <Image
-                    src={`http://127.0.0.1:8000/storage/${wargaData.foto_ktp}`}
+                    src={`http://127.0.0.1:8000/${wargaData.foto_ktp}`}
                     alt={wargaData.nama_lengkap}
                     fill
                     className="object-cover"

@@ -7,6 +7,7 @@ import LayoutWrapper from "@/components/publik/petainteraktif/LayoutWrapper";
 const poppins = Poppins({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"], // pilih variasi weight
+  
 });
 
 export const metadata = {

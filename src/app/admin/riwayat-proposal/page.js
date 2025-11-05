@@ -1,21 +1,12 @@
-// src/app/admin/riwayat-buku-tanah/page.js
 "use client";
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
-  Search, Calendar, ChevronLeft, ChevronRight,
-  Layers, Eye, Plus, Pencil, Trash,
+  Search, Calendar, ChevronLeft, ChevronRight, Layers, Eye,
+  Plus, Pencil, Trash, RefreshCcw,
 } from "lucide-react";
-import { useAuditKepala } from "@/hooks/useAudit";
-
-// ⬇️ Tambah: Poppins lokal hanya untuk halaman ini
-import { Poppins } from "next/font/google";
-const poppins = Poppins({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-poppins",
-});
+import { useAuditStaff } from "@/hooks/useAudit";
 
 const jenisFromAction = (a = "") =>
   a === "create" ? "Tambah" : a === "update" ? "Edit" : a === "delete" ? "Hapus" : a || "-";
@@ -30,10 +21,10 @@ const formatTanggal = (iso) => {
   return `${tgl} || ${jam}`;
 };
 
-export default function RiwayatBukuTanahKepalaPage() {
+export default function RiwayatProposalStaffPage() {
   // === filters ===
-  const [qInput, setQInput] = useState("");     // ketik di input
-  const [query, setQuery] = useState("");       // dipakai fetch
+  const [qInput, setQInput] = useState("");   // input ketik
+  const [query, setQuery] = useState("");     // untuk fetch
   const [module, setModule] = useState("");
   const [status, setStatus] = useState("");
   const [month, setMonth] = useState("");
@@ -43,9 +34,8 @@ export default function RiwayatBukuTanahKepalaPage() {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
 
-  const { loading, error, result, fetchAudit } = useAuditKepala();
+  const { loading, error, result, fetchAudit } = useAuditStaff();
 
-  // rakit filters (pakai query, bukan qInput)
   const buildFilters = useCallback(() => {
     const f = { q: query, module, status };
     if (month) { f.month = month; f.year = year; }
@@ -56,22 +46,36 @@ export default function RiwayatBukuTanahKepalaPage() {
     fetchAudit({ page, perPage, filters: buildFilters() }).catch(() => {});
   }, [fetchAudit, page, perPage, buildFilters]);
 
-  // initial + saat filter (kecuali qInput) berubah
   useEffect(() => { runFetch(); }, [runFetch]);
 
-  // search button / Enter: commit qInput -> query
+  // refresh guard
+  const refreshingRef = useRef(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    if (refreshingRef.current) return;
+    refreshingRef.current = true;
+    setRefreshing(true);
+    try {
+      setPage(1);
+    } finally {
+      refreshingRef.current = false;
+      setRefreshing(false);
+    }
+  };
+
+  // search commit
   const onSearch = () => {
     setPage(1);
     setQuery(qInput.trim());
   };
 
-  // ===== stat dari summary server (bukan pagination) =====
-  const totalAll     = result?.stats?.total ?? 0;
-  const countTambah  = result?.stats?.by_action?.create ?? 0;
-  const countEdit    = result?.stats?.by_action?.update ?? 0;
-  const countHapus   = result?.stats?.by_action?.delete ?? 0;
-  const totalPages   = result?.pagination?.last_page ?? 1;
-  const fromIndex    = result?.pagination?.from ?? 1;
+  // summary (milik staff sendiri)
+  const totalAll    = result?.stats?.total ?? 0;
+  const countTambah = result?.stats?.by_action?.create ?? 0;
+  const countEdit   = result?.stats?.by_action?.update ?? 0;
+  const countHapus  = result?.stats?.by_action?.delete ?? 0;
+  const totalPages  = result?.pagination?.last_page ?? 1;
+  const fromIndex   = result?.pagination?.from ?? 1;
 
   const rows = useMemo(() => {
     const items = result?.data ?? [];
@@ -79,7 +83,7 @@ export default function RiwayatBukuTanahKepalaPage() {
       no: fromIndex + idx,
       id: it.id,
       module: it.module,
-      nama: it.submitted_by?.name ?? it.pemilik_name ?? "-",
+      nama: it.pemilik_name || "-",
       tanggal: formatTanggal(it.submitted_at ?? it.created_at),
       jenis: jenisFromAction(it.action),
       status: it.status,
@@ -109,16 +113,9 @@ export default function RiwayatBukuTanahKepalaPage() {
     : "bg-amber-50 text-amber-800";
 
   return (
-    // ⬇️ Wrapper Poppins + aturan global untuk form controls
-    <div className={`${poppins.variable} space-y-6`}>
-      <style jsx global>{`
-        select, option, input, textarea, button {
-          font-family: var(--font-poppins), ui-sans-serif, system-ui, -apple-system,
-            "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans",
-            "Liberation Sans", sans-serif !important;
-        }
-      `}</style>
-
+    <div className="space-y-6">
+      {/* Title */}
+      
       {/* Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white border border-gray-200 rounded-xl p-6">
@@ -156,7 +153,7 @@ export default function RiwayatBukuTanahKepalaPage() {
         </div>
       </div>
 
-      {/* Card: Riwayat Data (filters kanan) */}
+      {/* Filter (kanan) */}
       <div className="bg-white border border-gray-200 rounded-xl p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-col gap-1">
@@ -221,7 +218,7 @@ export default function RiwayatBukuTanahKepalaPage() {
         </div>
       </div>
 
-      {/* Card: Search */}
+      {/* Search + Refresh */}
       <div className="bg-white border border-gray-200 rounded-xl p-5">
         <div className="flex flex-col md:flex-row items-center justify-between gap-3">
           <div className="relative w-full md:w-96">
@@ -248,6 +245,7 @@ export default function RiwayatBukuTanahKepalaPage() {
               <Search size={16} />
               <span>Search</span>
             </button>
+           
           </div>
         </div>
       </div>
@@ -283,7 +281,7 @@ export default function RiwayatBukuTanahKepalaPage() {
                 </td>
                 <td className="px-6 py-3 text-sm">
                   <Link
-                    href={`/admin/riwayat-buku-tanah/detail/${r.id}`}
+                    href={`/admin/riwayat-proposal/detail/${r.id}`}
                     className="inline-flex items-center gap-2 px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50"
                   >
                     <Eye size={16} />
@@ -324,6 +322,7 @@ export default function RiwayatBukuTanahKepalaPage() {
 
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={loading || page === 1}
               className="p-2 rounded hover:bg-gray-100 disabled:opacity-50"
@@ -333,6 +332,7 @@ export default function RiwayatBukuTanahKepalaPage() {
             </button>
             <span className="text-sm text-gray-600">Halaman {page} / {totalPages}</span>
             <button
+              type="button"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={loading || page === totalPages}
               className="p-2 rounded hover:bg-gray-100 disabled:opacity-50"

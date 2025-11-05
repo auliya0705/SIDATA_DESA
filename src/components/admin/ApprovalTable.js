@@ -1,228 +1,211 @@
+// src/components/admin/ApprovalTable.js
 "use client";
 
-import { useState } from "react";
-import { MoreVertical, Eye, CheckCircle, XCircle } from "lucide-react";
+import { useMemo } from "react";
+import { Eye, Check, X } from "lucide-react";
+
+function safeParseJSON(v) {
+  if (typeof v !== "string") return v || null;
+  try { return JSON.parse(v); } catch { return null; }
+}
+
+function extractNamaNik(row) {
+  const payload = safeParseJSON(row.payload) ?? row.payload ?? {};
+  const snap = payload?.snapshot ?? null;
+  const after = payload?.after ?? null;
+  const before = payload?.before ?? null;
+
+  const nik =
+    row.display_nik ??
+    row.nik ??
+    snap?.nik ??
+    after?.nik ??
+    before?.nik ??
+    payload?.nik ??
+    "-";
+
+  const nama =
+    row.display_nama ??
+    row.nama_lengkap ??
+    snap?.nama_lengkap ??
+    after?.nama_lengkap ??
+    before?.nama_lengkap ??
+    payload?.nama_lengkap ??
+    "-";
+
+  return { nik, nama };
+}
+
+function normalizeRowStatus(row) {
+  const raw =
+    row?.status ??
+    row?.status_approval ??
+    row?.approval_status ??
+    row?.state ??
+    row?.current_status ??
+    null;
+  if (!raw) return "PENDING";
+  const up = String(raw).trim().toUpperCase();
+  if (["APPROVED", "DISETUJUI"].includes(up)) return "APPROVED";
+  if (["REJECTED", "DITOLAK"].includes(up)) return "REJECTED";
+  if (["PENDING", "MENUNGGU", "DRAFT"].includes(up)) return "PENDING";
+  return up;
+}
+
+function getApprovalId(row) {
+  return (
+    row?.approval_id ??
+    row?.request_id ??
+    row?.proposal_id ??
+    row?.id
+  );
+}
+
+function getSubmittedAt(row) {
+  return row?.created_at ?? row?.submitted_at ?? row?.updated_at ?? null;
+}
 
 export default function ApprovalTable({
   data = [],
   onApprove,
   onReject,
   onViewDetail,
-  getModuleName,
-  getActionName,
+  getModuleName = (m) => m,
+  getActionName = (a) => a,
+  showId = true,                 // <-- NEW: bisa matikan kolom ID
 }) {
-  const [showActionMenu, setShowActionMenu] = useState(null);
+  const rows = useMemo(() => data || [], [data]);
 
-  const getStatusBadgeColor = (status) => {
-    switch (status) {
-      case "pending":
-        return "bg-yellow-100 text-yellow-800";
-      case "approved":
-        return "bg-green-100 text-green-800";
-      case "rejected":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const getStatusLabel = (status) => {
-    switch (status) {
-      case "pending":
-        return "Pending";
-      case "approved":
-        return "Approved";
-      case "rejected":
-        return "Ditolak";
-      default:
-        return status;
-    }
-  };
-
-  // Extract relevant data from payload based on module
-  const getDisplayData = (item) => {
-    const payload = item.payload || {};
-
-    switch (item.module) {
-      case "warga":
-        return {
-          primaryId: payload.nik || "-",
-          primaryName: payload.nama_lengkap || payload.nama || "-",
-        };
-      case "tanah":
-        return {
-          primaryId: payload.id_bidang || item.target_id || "-",
-          primaryName: payload.pemilik || payload.lokasi || "-",
-        };
-      case "bidang":
-        return {
-          primaryId: payload.id_bidang || item.target_id || "-",
-          primaryName: payload.nama_bidang || "-",
-        };
-      default:
-        return {
-          primaryId: item.target_id || "-",
-          primaryName: "-",
-        };
-    }
-  };
-
-  // Format date to Indonesian format
-  const formatDate = (dateString) => {
-    if (!dateString) return "-";
-
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString("id-ID", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    } catch (error) {
-      return dateString;
-    }
-  };
+  if (!rows.length) return null;
 
   return (
-    <div className="overflow-x-auto bg-white rounded-lg shadow">
+    <div className="overflow-x-auto bg-white rounded-lg shadow-sm border border-gray-200">
       <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-teal-700 text-white">
           <tr>
-            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">
-              #
-            </th>
-            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">
-              ID Proposal
-            </th>
-            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">
-              Modul
-            </th>
-            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">
-              ID/NIK
-            </th>
-            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">
-              Nama/Keterangan
-            </th>
-            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">
-              Jenis Perubahan
-            </th>
-            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">
-              Tanggal Pengajuan
-            </th>
-            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">
-              Status
-            </th>
-            <th className="px-6 py-4 text-left text-xs font-semibold uppercase">
-              Aksi
-            </th>
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">#</th>
+            {showId && (
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">ID PROPOSAL</th>
+            )}
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">MODUL</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">ID/NIK</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">NAMA/KETERANGAN</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">JENIS PERUBAHAN</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">TANGGAL PENGAJUAN</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">STATUS</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">AKSI</th>
           </tr>
         </thead>
+
         <tbody className="bg-white divide-y divide-gray-200">
-          {data.map((item, index) => {
-            const displayData = getDisplayData(item);
+          {rows.map((row, idx) => {
+            const { nik, nama } = extractNamaNik(row);
+            const status = normalizeRowStatus(row);
+            const isPending = status === "PENDING";
+            const approvalId = getApprovalId(row);
+            const submittedAt = getSubmittedAt(row);
 
             return (
-              <tr key={item.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 text-sm text-gray-700">{index + 1}</td>
-
-                <td className="px-6 py-4 text-sm text-gray-900 font-medium">
-                  #{item.id}
+              <tr key={`${approvalId ?? "noid"}-${idx}`} className="hover:bg-gray-50 transition-colors">
+                {/* nomor urut: pakai _rownum kalau disediakan dari page.js */}
+                <td className="px-4 py-3 text-sm text-gray-700">
+                  {row._rownum ?? idx + 1}
                 </td>
 
-                <td className="px-6 py-4 text-sm text-gray-700">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
-                    {getModuleName(item.module)}
-                  </span>
+                {showId && (
+                  <td className="px-4 py-3 text-sm text-teal-700 font-medium">
+                    #{approvalId ?? "?"}
+                  </td>
+                )}
+
+                <td className="px-4 py-3 text-sm text-gray-700">
+                  {getModuleName(row.module)}
                 </td>
 
-                <td className="px-6 py-4 text-sm text-gray-900 font-mono">
-                  {displayData.primaryId}
+                <td className="px-4 py-3 text-sm font-mono text-gray-800 whitespace-nowrap">
+                  {nik}
                 </td>
 
-                <td className="px-6 py-4 text-sm text-gray-900">
-                  {displayData.primaryName}
+                <td className="px-4 py-3 text-sm text-gray-800">
+                  {nama}
                 </td>
 
-                <td className="px-6 py-4 text-sm text-gray-700">
-                  {getActionName(item.action)}
+                <td className="px-4 py-3 text-sm text-gray-700">
+                  {getActionName(row.action)}
                 </td>
 
-                <td className="px-6 py-4 text-sm text-gray-700">
-                  {formatDate(item.created_at)}
+                <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
+                  {submittedAt ? new Date(submittedAt).toLocaleString("id-ID") : "-"}
                 </td>
 
-                <td className="px-6 py-4 text-sm">
+                <td className="px-4 py-3 text-sm">
                   <span
-                    className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusBadgeColor(
-                      item.status
-                    )}`}
+                    className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                      status === "PENDING"
+                        ? "bg-yellow-100 text-yellow-800"
+                        : status === "APPROVED"
+                        ? "bg-green-100 text-green-800"
+                        : "bg-red-100 text-red-800"
+                    }`}
                   >
-                    {getStatusLabel(item.status)}
+                    {status === "PENDING" ? "Pending" : status === "APPROVED" ? "Approved" : "Ditolak"}
                   </span>
+                  {row.apply_error && (
+                    <button
+                      onClick={() =>
+                        alert(
+                          `Alasan gagal apply:\n\n${
+                            typeof row.apply_error === "string"
+                              ? row.apply_error
+                              : JSON.stringify(row.apply_error, null, 2)
+                          }`
+                        )
+                      }
+                      className="ml-2 text-xs underline text-red-700"
+                      title="Lihat alasan gagal apply dari backend"
+                    >
+                      detail error
+                    </button>
+                  )}
                 </td>
 
-                <td className="px-6 py-4 text-sm text-gray-700 relative">
-                  <button
-                    onClick={() =>
-                      setShowActionMenu(
-                        showActionMenu === item.id ? null : item.id
-                      )
-                    }
-                    className="p-1 hover:bg-gray-100 rounded"
-                  >
-                    <MoreVertical size={18} />
-                  </button>
+                <td className="px-4 py-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => onViewDetail?.({ ...row, approval_id: approvalId })}
+                      className="px-2 py-1 border rounded hover:bg-gray-50"
+                      title="Detail"
+                    >
+                      <Eye size={16} />
+                    </button>
 
-                  {/* Action Menu Dropdown */}
-                  {showActionMenu === item.id && (
-                    <>
-                      {/* Backdrop to close menu when clicking outside */}
-                      <div
-                        className="fixed inset-0 z-10"
-                        onClick={() => setShowActionMenu(null)}
-                      />
+                    <button
+                      onClick={() => isPending && onApprove?.({ ...row, approval_id: approvalId })}
+                      className={`px-2 py-1 border rounded text-green-700 ${
+                        isPending ? "hover:bg-green-50" : "opacity-50 cursor-not-allowed"
+                      }`}
+                      title={isPending ? "Approve" : "Hanya bisa approve saat status Pending"}
+                      disabled={!isPending || !approvalId}
+                    >
+                      <Check size={16} />
+                    </button>
 
-                      <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
-                        <button
-                          onClick={() => {
-                            onViewDetail && onViewDetail(item);
-                            setShowActionMenu(null);
-                          }}
-                          className="w-full flex items-center space-x-2 px-4 py-2 hover:bg-gray-50 text-gray-700 text-left rounded-t-lg"
-                        >
-                          <Eye size={16} />
-                          <span>Lihat Detail</span>
-                        </button>
+                    <button
+                      onClick={() => isPending && onReject?.({ ...row, approval_id: approvalId })}
+                      className={`px-2 py-1 border rounded text-red-700 ${
+                        isPending ? "hover:bg-red-50" : "opacity-50 cursor-not-allowed"
+                      }`}
+                      title={isPending ? "Tolak" : "Hanya bisa menolak saat status Pending"}
+                      disabled={!isPending || !approvalId}
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
 
-                        {item.status === "pending" && (
-                          <>
-                            <div className="border-t border-gray-100" />
-                            <button
-                              onClick={() => {
-                                onApprove && onApprove(item.id);
-                                setShowActionMenu(null);
-                              }}
-                              className="w-full flex items-center space-x-2 px-4 py-2 hover:bg-green-50 text-green-600 text-left"
-                            >
-                              <CheckCircle size={16} />
-                              <span>Approve</span>
-                            </button>
-                            <button
-                              onClick={() => {
-                                onReject && onReject(item.id);
-                                setShowActionMenu(null);
-                              }}
-                              className="w-full flex items-center space-x-2 px-4 py-2 hover:bg-red-50 text-red-600 text-left rounded-b-lg"
-                            >
-                              <XCircle size={16} />
-                              <span>Tolak</span>
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </>
+                  {!approvalId && (
+                    <div className="mt-2 text-[11px] text-amber-700">
+                      ⚠️ Tidak menemukan approval_id pada baris ini — tombol dinonaktifkan.
+                    </div>
                   )}
                 </td>
               </tr>
@@ -230,8 +213,6 @@ export default function ApprovalTable({
           })}
         </tbody>
       </table>
-
-      {/* Empty state handled in parent */}
     </div>
   );
 }

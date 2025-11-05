@@ -1,3 +1,4 @@
+// src/app/admin/management-warga/edit/[id]/page.js
 "use client";
 
 import { useEffect, useState } from "react";
@@ -6,42 +7,44 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import WargaForm from "@/components/admin/WargaForm";
 import { useWarga } from "@/hooks/useWarga";
+import { API_ENDPOINTS, getApiUrl } from "@/lib/config";
 
 export default function EditWargaPage() {
   const params = useParams();
   const router = useRouter();
-  const { loading: hookLoading, getWargaById } = useWarga();
+  const { loading: hookLoading, getWargaById, checkNikUnique } = useWarga();
 
   const [wargaData, setWargaData] = useState(null);
+  const [originalNik, setOriginalNik] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     loadWargaData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 
   const loadWargaData = async () => {
     try {
       const data = await getWargaById(params.id);
+      const tanggal = data.tanggal_lahir ? String(data.tanggal_lahir).split("T")[0] : "";
 
-      // Format data for form
-      const formattedData = {
-        nama_lengkap: data.nama_lengkap,
-        jenis_kelamin: data.jenis_kelamin,
-        nik: data.nik,
-        tempat_lahir: data.tempat_lahir,
-        tanggal_lahir: data.tanggal_lahir?.split("T")[0], // Convert ISO to YYYY-MM-DD
-        agama: data.agama,
-        status_perkawinan: data.status_perkawinan,
-        pendidikan_terakhir: data.pendidikan_terakhir,
-        pekerjaan: data.pekerjaan,
-        kewarganegaraan: data.kewarganegaraan,
-        alamat_lengkap: data.alamat_lengkap,
-        keterangan: data.keterangan,
-        foto_ktp_existing: data.foto_ktp, // Existing photo path
-      };
-
-      setWargaData(formattedData);
+      setWargaData({
+        nama_lengkap: data.nama_lengkap ?? "",
+        jenis_kelamin: data.jenis_kelamin ?? "",
+        nik: data.nik ?? "",
+        tempat_lahir: data.tempat_lahir ?? "",
+        tanggal_lahir: tanggal,
+        agama: data.agama ?? "",
+        status_perkawinan: data.status_perkawinan ?? "",
+        pendidikan_terakhir: data.pendidikan_terakhir ?? "",
+        pekerjaan: data.pekerjaan ?? "",
+        kewarganegaraan: data.kewarganegaraan ?? "WNI",
+        alamat_lengkap: data.alamat_lengkap ?? "",
+        keterangan: data.keterangan ?? "",
+        foto_ktp_existing: data.foto_ktp ?? null,
+      });
+      setOriginalNik(data.nik ?? "");
       setLoading(false);
     } catch (err) {
       console.error("Failed to load warga data:", err);
@@ -52,54 +55,72 @@ export default function EditWargaPage() {
 
   const handleSubmit = async (formData) => {
     setSubmitting(true);
-
     try {
-      // Create FormData for file upload
-      const submitData = new FormData();
+      // Pre-check NIK jika berubah
+      const nikNow = String(formData.nik || "").trim();
+      if (nikNow && nikNow !== String(originalNik || "").trim()) {
+        const { exists, conflictId } = await checkNikUnique(nikNow, params.id);
+        if (exists) {
+          alert(
+            `NIK ${nikNow} sudah dipakai oleh warga lain` +
+              (conflictId ? ` (ID ${conflictId})` : "") +
+              `. Gunakan NIK lain atau batalkan perubahan NIK.`
+          );
+          return;
+        }
+      }
 
-      // Add warga_id for edit proposal
-      submitData.append("warga_id", params.id);
+      // Build FormData + _method=PATCH
+      const fd = new FormData();
+      fd.append("_method", "PATCH");
 
-      // Append all form fields
       Object.keys(formData).forEach((key) => {
         if (key === "foto_ktp" && formData[key]) {
-          // New file upload
-          submitData.append(key, formData[key]);
-        } else if (
-          key !== "foto_ktp_existing" &&
-          formData[key] !== null &&
-          formData[key] !== undefined
-        ) {
-          submitData.append(key, formData[key]);
+          fd.append("foto_ktp", formData[key]);
+        } else if (key !== "foto_ktp_existing" && formData[key] !== null && formData[key] !== undefined) {
+          fd.append(key, formData[key]);
         }
       });
 
-      // Call API - This creates an EDIT PROPOSAL
-      const response = await fetch(
-        "http://127.0.0.1:8000/api/staff/proposals/warga",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-          body: submitData,
-        }
-      );
+      // Endpoint UPDATE proposal (mengandung {id})
+      const endpoint = API_ENDPOINTS.STAFF.PROPOSALS.WARGA.UPDATE(params.id);
+      const url = getApiUrl(endpoint);
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Gagal membuat proposal");
+      const res = await fetch(url, {
+        method: "POST", // POST + _method=PATCH → Laravel routes:patch(...)
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+          Accept: "application/json",
+          // (Jangan set Content-Type supaya boundary FormData otomatis)
+        },
+        body: fd,
+      });
+
+      const ctype = res.headers.get("content-type") || "";
+      const text = await res.text();
+
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        if (ctype.includes("application/json")) {
+          try {
+            const j = JSON.parse(text);
+            msg = j.message || j.error || msg;
+          } catch {}
+        } else {
+          msg = `${res.status}: ${res.statusText}`;
+        }
+        throw new Error(msg);
       }
 
-      const result = await response.json();
+      if (!ctype.includes("application/json")) {
+        throw new Error("Server mengembalikan non-JSON (kemungkinan redirect/HTML).");
+      }
 
-      alert(
-        "Proposal perubahan berhasil dibuat! Menunggu persetujuan Kepala Desa."
-      );
+      alert("Proposal perubahan berhasil dibuat! Menunggu persetujuan Kepala Desa.");
       router.push("/admin/management-warga");
-    } catch (error) {
-      console.error("Edit error:", error);
-      alert("Gagal membuat proposal: " + error.message);
+    } catch (err) {
+      console.error("Edit error:", err);
+      alert("Gagal membuat proposal: " + err.message);
     } finally {
       setSubmitting(false);
     }
@@ -118,13 +139,11 @@ export default function EditWargaPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Edit Data Warga</h1>
           <p className="text-sm text-gray-600 mt-1">
-            Perubahan akan dikirim sebagai proposal dan menunggu persetujuan
-            Kepala Desa
+            Perubahan akan dikirim sebagai proposal dan menunggu persetujuan Kepala Desa
           </p>
         </div>
         <Link
@@ -136,13 +155,7 @@ export default function EditWargaPage() {
         </Link>
       </div>
 
-      {/* Form */}
-      <WargaForm
-        mode="edit"
-        initialData={wargaData}
-        onSubmit={handleSubmit}
-        loading={submitting}
-      />
+      <WargaForm mode="edit" initialData={wargaData} onSubmit={handleSubmit} loading={submitting} />
     </div>
   );
 }

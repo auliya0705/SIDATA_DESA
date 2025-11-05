@@ -1,22 +1,48 @@
-// lib/api.js
+// src/lib/api.js
 
 import { getToken, logout } from "./auth";
 import { getApiUrl } from "./config";
 
 /**
- * Enhanced API client with authentication
- * Uses Bearer token from localStorage
+ * Authenticated fetch with robust error handling:
+ * - Always sends Accept: application/json
+ * - Sets Content-Type only when needed (not for FormData / no body)
+ * - Parses JSON safely (fallback to text)
+ * - Flattens Laravel validation errors
+ * - HARD GUARD: blocks any call to "/apply" since backend doesn't have it
  */
 export async function apiClient(endpoint, options = {}) {
+  // HARD GUARD: stop accidental /apply hits anywhere in FE
+  if (typeof endpoint === "string" && endpoint.includes("/apply")) {
+    const msg =
+      "Endpoint /apply tidak tersedia di backend. Hentikan pemanggilan ini di FE.";
+    console.error("❌ API Blocked:", msg, {
+      endpoint,
+      method: options?.method || "GET",
+    });
+    throw new Error(msg);
+  }
+
   const token = getToken();
   const url = getApiUrl(endpoint);
 
+  // Base headers
   const headers = {
-    "Content-Type": "application/json",
-    ...options.headers,
+    Accept: "application/json",
+    ...(options.headers || {}),
   };
 
-  // Add Bearer token if available
+  // Body handling
+  const hasBody =
+    "body" in options && options.body !== undefined && options.body !== null;
+  const isFormData =
+    typeof FormData !== "undefined" && options.body instanceof FormData;
+
+  if (hasBody && !isFormData) {
+    headers["Content-Type"] = headers["Content-Type"] || "application/json";
+  }
+
+  // Bearer token
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
@@ -27,73 +53,141 @@ export async function apiClient(endpoint, options = {}) {
       headers,
     });
 
-    // Handle 401 Unauthorized - auto logout
+    const contentType = res.headers.get("content-type") || "";
+    const raw = await res.text(); // read once
+
+    // 401 → auto logout
     if (res.status === 401) {
       console.warn("🔒 Unauthorized - logging out");
       logout();
-      throw new Error("Session expired. Please login again.");
+      const e = new Error("Session expired. Please login again.");
+      e.status = 401;
+      throw e;
     }
 
-    // Handle other error status codes
+    // Non-OK → build best error message
     if (!res.ok) {
-      const errorData = await res.json().catch(() => ({}));
-      const errorMessage =
-        errorData.message || errorData.error || `HTTP ${res.status}`;
-      throw new Error(errorMessage);
+      let msg = `HTTP ${res.status}`;
+      let data = null;
+
+      if (contentType.includes("application/json")) {
+        try {
+          data = JSON.parse(raw);
+
+          // Ambil pesan dasar
+          const base =
+            data?.message ||
+            data?.error ||
+            data?.friendly ||
+            data?.errors ||
+            data;
+
+          // Ratakan laravel validation errors jika ada
+          let flatValidation = "";
+          if (data?.errors && typeof data.errors === "object") {
+            flatValidation = Object.entries(data.errors)
+              .map(([k, v]) => (Array.isArray(v) ? `${k}: ${v.join(", ")}` : `${k}: ${v}`))
+              .join("; ");
+          }
+
+          // Kumpulkan potongan pesan yang mungkin muncul
+          const parts = [
+            typeof base === "string" ? base : JSON.stringify(base),
+            data?.apply_error &&
+              (typeof data.apply_error === "string"
+                ? data.apply_error
+                : JSON.stringify(data.apply_error)),
+            flatValidation,
+          ].filter(Boolean);
+
+          msg = parts.length ? parts.join(" — ") : msg;
+        } catch {
+          msg = `${res.status}: ${res.statusText}`;
+        }
+      } else {
+        // Non-JSON (HTML/text)
+        msg = raw?.trim() ? raw.slice(0, 500) : `${res.status}: ${res.statusText}`;
+      }
+
+      const hint = typeof endpoint === "string" ? ` [endpoint: ${endpoint}]` : "";
+      const error = new Error(`${msg}${hint}`);
+      error.status = res.status;
+      if (contentType.includes("application/json")) {
+        try {
+          error.data = data ?? JSON.parse(raw);
+        } catch {
+          // ignore
+        }
+      } else {
+        error.raw = raw;
+      }
+      throw error;
     }
 
-    // Return JSON response
-    return await res.json();
+    // OK → parse if JSON
+    if (contentType.includes("application/json")) {
+      try {
+        return JSON.parse(raw);
+      } catch {
+        // malformed json, tetap kembalikan raw
+        return raw;
+      }
+    }
+    return raw;
   } catch (err) {
-    console.error("❌ API Error:", err);
+    // Pastikan log tidak “{}” lagi: log string + detail
+    const message = err?.message || String(err);
+    console.error("❌ API Error:", message, {
+      endpoint,
+      method: options?.method || "GET",
+      status: err?.status,
+      data: err?.data,
+    });
     throw err;
   }
 }
 
-/**
- * GET request
- */
+/** GET */
 export async function apiGet(endpoint) {
-  return apiClient(endpoint, {
-    method: "GET",
-  });
+  return apiClient(endpoint, { method: "GET" });
 }
 
-/**
- * POST request
+/** POST
+ * - data = null/undefined → POST tanpa body (no Content-Type forced)
+ * - data = FormData → kirim FormData (no Content-Type)
+ * - else → JSON.stringify
  */
 export async function apiPost(endpoint, data) {
-  return apiClient(endpoint, {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
+  const opts = { method: "POST" };
+
+  if (data === undefined || data === null) {
+    // no body
+  } else if (typeof FormData !== "undefined" && data instanceof FormData) {
+    opts.body = data;
+  } else {
+    opts.body = JSON.stringify(data);
+  }
+
+  return apiClient(endpoint, opts);
 }
 
-/**
- * PUT request
- */
+/** PUT (JSON only) */
 export async function apiPut(endpoint, data) {
   return apiClient(endpoint, {
     method: "PUT",
-    body: JSON.stringify(data),
+    body: JSON.stringify(data ?? {}),
   });
 }
 
-/**
- * DELETE request
- */
+/** DELETE */
 export async function apiDelete(endpoint) {
-  return apiClient(endpoint, {
-    method: "DELETE",
-  });
+  return apiClient(endpoint, { method: "DELETE" });
 }
 
-/**
- * PATCH request
- */
+/** PATCH (JSON only) */
 export async function apiPatch(endpoint, data) {
   return apiClient(endpoint, {
     method: "PATCH",
-    body: JSON.stringify(data),
+    body: JSON.stringify(data ?? {}),
   });
 }
