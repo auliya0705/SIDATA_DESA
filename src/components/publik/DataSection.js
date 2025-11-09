@@ -108,7 +108,7 @@ const renderActiveShape = (props) => {
         textAnchor={textAnchor}
         fill="#333"
       >
-        {`${value} bidang`}
+        {`${value} m²`}
       </text>
       <text
         x={ex + (cos >= 0 ? 1 : -1) * 12}
@@ -144,101 +144,66 @@ export default function DataSection() {
     getData();
   }, []);
 
-  if (error) return <p className="text-center text-red-600 py-10">Gagal memuat data: {error}</p>;
+  if (error)
+    return (
+      <p className="text-center text-red-600 py-10">
+        Gagal memuat data: {error}
+      </p>
+    );
   if (!dataAPI) return <p className="text-center py-10">Memuat data...</p>;
 
   const pieData = [
     { name: "Sudah Bersertifikat", value: dataAPI.ringkasan.bersertifikat_m2 },
-    { name: "Belum Bersertifikat", value: dataAPI.ringkasan.belum_sertifikat_m2 },
+    {
+      name: "Belum Bersertifikat",
+      value: dataAPI.ringkasan.belum_sertifikat_m2,
+    },
   ];
 
-  const dataSudah = Object.entries(dataAPI.rincian.status_hak.bersertifikat)
-    .map(([key, value]) => ({ name: key.toUpperCase(), value }));
+  const dataSudah = Object.entries(
+    dataAPI.rincian.status_hak.bersertifikat
+  ).map(([key, value]) => ({ name: key.toUpperCase(), value }));
 
-  const dataBelum = Object.entries(dataAPI.rincian.status_hak.belum_bersertifikat)
-    .map(([key, value]) => ({ name: key.toUpperCase(), value }));
+  const dataBelum = Object.entries(
+    dataAPI.rincian.status_hak.belum_bersertifikat
+  ).map(([key, value]) => ({ name: key.toUpperCase(), value }));
 
   const penggunaanData = [
     { name: "Non Pertanian", value: dataAPI.ringkasan.non_pertanian_m2 },
     { name: "Pertanian", value: dataAPI.ringkasan.pertanian_m2 },
   ];
 
-  const dataNonPertanian = Object.entries(dataAPI.rincian.penggunaan.non_pertanian)
-    .map(([key, value]) => ({ name: key.slice(0, 3).toUpperCase(), value }));
+  const dataNonPertanian = Object.entries(
+    dataAPI.rincian.penggunaan.non_pertanian
+  ).map(([key, value]) => {
+    const nameMap = {
+      perumahan: "PRM",
+      perdagangan_jasa: "PDJ",
+      perkantoran: "PKO",
+      industri: "IND",
+      fasilitas_umum: "FUM",
+    };
+    return { name: nameMap[key] || key.toUpperCase(), key, value, unit: "m²" };
+  });
 
-  const dataPertanian = Object.entries(dataAPI.rincian.penggunaan.pertanian)
-    .map(([key, value]) => ({ name: key.slice(0, 3).toUpperCase(), value }));
+  const dataPertanian = Object.entries(
+    dataAPI.rincian.penggunaan.pertanian
+  ).map(([key, value]) => {
+    const nameMap = {
+      sawah: "SWH",
+      tegalan: "TGL",
+      perkebunan: "PKB",
+      peternakan_perikanan: "PTR",
+      hutan_belukar: "HBL",
+      hutan_lindung: "HLL",
+      mutasi_tanah: "MTD",
+      tanah_kosong: "TKS",
+      lain_lain: "LLN",
+    };
+    return { name: nameMap[key] || key.toUpperCase(), key, value, unit: "m²" };
+  });
 
   const totalTanah = pieData.reduce((sum, d) => sum + d.value, 0) || 0;
-  // const [activeTab1, setActiveTab1] = useState("Sudah Bersertifikat");
-  // const [activeTab2, setActiveTab2] = useState("Non Pertanian");
-  // const [activeIndex, setActiveIndex] = useState(0);
-  // const [dataAPI, setDataAPI] = useState(null);
-
-  // // Ambil data dari backend
-  // useEffect(() => {
-  //   const loadData = async () => {
-  //     try {
-  //       const result = await fetchDataSection();
-  //       setDataAPI(result);
-  //     } catch (error) {
-  //       console.error("Gagal memuat data:", error);
-  //     }
-  //   };
-  //   loadData();
-  // }, []);
-
-  // // Tampilkan loading state
-  // if (!dataAPI) return <p className="text-center py-10">Memuat data...</p>;
-
-  // // 🔹 Format data dari API agar cocok dengan chart
-  // const pieData = [
-  //   {
-  //     name: "Sudah Bersertifikat",
-  //     value: dataAPI.ringkasan.bersertifikat_m2,
-  //   },
-  //   {
-  //     name: "Belum Bersertifikat",
-  //     value: dataAPI.ringkasan.belum_sertifikat_m2,
-  //   },
-  // ];
-
-  // const dataSudah = Object.entries(
-  //   dataAPI.rincian.status_hak.bersertifikat
-  // ).map(([key, value]) => ({ name: key.toUpperCase(), value }));
-
-  // const dataBelum = Object.entries(
-  //   dataAPI.rincian.status_hak.belum_bersertifikat
-  // ).map(([key, value]) => ({ name: key.toUpperCase(), value }));
-
-  // const penggunaanData = [
-  //   {
-  //     name: "Non Pertanian",
-  //     value: dataAPI.ringkasan.non_pertanian_m2,
-  //   },
-  //   {
-  //     name: "Pertanian",
-  //     value: dataAPI.ringkasan.pertanian_m2,
-  //   },
-  // ];
-
-  // const dataNonPertanian = Object.entries(
-  //   dataAPI.rincian.penggunaan.non_pertanian
-  // ).map(([key, value]) => ({
-  //   name: key.slice(0, 3).toUpperCase(),
-  //   value,
-  // }));
-
-  // const dataPertanian = Object.entries(
-  //   dataAPI.rincian.penggunaan.pertanian
-  // ).map(([key, value]) => ({
-  //   name: key.slice(0, 3).toUpperCase(),
-  //   value,
-  // }));
-
-  // const totalTanah =
-  //   pieData.reduce((sum, d) => sum + d.value, 0) || 0;
-
   return (
     <section className="w-full px-10 py-16 bg-white">
       {/* ===== BAGIAN 1 ===== */}
@@ -271,7 +236,7 @@ export default function DataSection() {
             </PieChart>
           </ResponsiveContainer>
           <p className="mt-4 text-lg font-medium text-gray-700">
-            Total {totalTanah} bidang tanah
+            Total Luas Tanah {totalTanah} m²
           </p>
         </div>
 
@@ -296,22 +261,16 @@ export default function DataSection() {
           <ResponsiveContainer width="100%" height={250}>
             <BarChart
               data={
-                activeTab1 === "Sudah Bersertifikat"
-                  ? dataSudah
-                  : dataBelum
+                activeTab1 === "Sudah Bersertifikat" ? dataSudah : dataBelum
               }
               layout="vertical"
             >
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis type="number" />
-              <YAxis
-                type="category"
-                dataKey="name"
-                tick={{ fontSize: 12 }}
-              />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} />
               <Tooltip
                 formatter={(value, name, props) => [
-                  `${value}`,
+                  `${value.toLocaleString()} m²`,
                   labelMap[props.payload.name],
                 ]}
               />
@@ -351,7 +310,7 @@ export default function DataSection() {
             </PieChart>
           </ResponsiveContainer>
           <p className="mt-4 text-lg font-medium text-gray-700">
-            Total {totalTanah} bidang tanah
+            Total Luas Tanah {totalTanah} m²
           </p>
         </div>
 
@@ -384,14 +343,10 @@ export default function DataSection() {
             >
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis type="number" />
-              <YAxis
-                type="category"
-                dataKey="name"
-                tick={{ fontSize: 12 }}
-              />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} />
               <Tooltip
                 formatter={(value, name, props) => [
-                  `${value}`,
+                  `${value.toLocaleString()} m²`,
                   labelMap[props.payload.name],
                 ]}
               />

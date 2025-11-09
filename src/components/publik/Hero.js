@@ -26,7 +26,7 @@ export default function Hero() {
             Selamat Datang di <span className="text-teal-300">SIDATA DESA</span>
         </h1>
         <p className="text-lg md:text-xl font-medium mb-6">
-            Website resmi Desa Banyubiru yang menyediakan informasi dan data desa secara transparan dan akurat
+            Website resmi Desa Pongangan yang menyediakan informasi dan data desa secara transparan dan akurat
         </p>
       </div>
       

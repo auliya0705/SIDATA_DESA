@@ -1,3 +1,4 @@
+// src/app/admin/management-warga/create/page.js
 "use client";
 
 import { useState } from "react";
@@ -11,15 +12,16 @@ export default function CreateWargaPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  // Dialog states
+  // Dialog states - FIXED: Use function setState
   const [dialogs, setDialogs] = useState({
     success: false,
     error: false,
   });
   const [dialogMessage, setDialogMessage] = useState("");
 
+  // FIXED: Use function setState
   const closeDialog = (dialogName) => {
-    setDialogs({ ...dialogs, [dialogName]: false });
+    setDialogs((prev) => ({ ...prev, [dialogName]: false }));
   };
 
   const handleSuccessClose = () => {
@@ -87,15 +89,15 @@ export default function CreateWargaPage() {
         );
       }
 
-      // Success
+      // Success - FIXED: Use function setState
       setDialogMessage(
         "Proposal warga berhasil dibuat! Menunggu persetujuan Kepala Desa."
       );
-      setDialogs({ ...dialogs, success: true });
+      setDialogs((prev) => ({ ...prev, success: true }));
     } catch (error) {
       console.error("❌ Create error:", error);
       setDialogMessage("Gagal membuat proposal: " + error.message);
-      setDialogs({ ...dialogs, error: true });
+      setDialogs((prev) => ({ ...prev, error: true }));
     } finally {
       setLoading(false);
     }

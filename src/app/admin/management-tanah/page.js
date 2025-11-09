@@ -36,7 +36,7 @@ export default function ManagementTanahPage() {
     per_page: 10,
   });
 
-  // Dialog states
+  // Dialog states - FIXED: Use function setState
   const [dialogs, setDialogs] = useState({
     deleteConfirm: false,
     deleteSuccess: false,
@@ -46,8 +46,9 @@ export default function ManagementTanahPage() {
   const [dialogMessage, setDialogMessage] = useState("");
   const [pendingDelete, setPendingDelete] = useState({ id: null, name: "" });
 
+  // FIXED: Use function setState
   const closeDialog = (dialogName) => {
-    setDialogs({ ...dialogs, [dialogName]: false });
+    setDialogs((prev) => ({ ...prev, [dialogName]: false }));
   };
 
   // Build query string for backend
@@ -115,7 +116,7 @@ export default function ManagementTanahPage() {
 
   const handleExport = () => {
     setDialogMessage("Fitur ekspor data akan segera tersedia");
-    setDialogs({ ...dialogs, exportInfo: true });
+    setDialogs((prev) => ({ ...prev, exportInfo: true }));
   };
 
   const handleDeleteClick = (id) => {
@@ -125,7 +126,7 @@ export default function ManagementTanahPage() {
       id,
       name: row?.nama_pemilik || "tanah ini",
     });
-    setDialogs({ ...dialogs, deleteConfirm: true });
+    setDialogs((prev) => ({ ...prev, deleteConfirm: true }));
   };
 
   const handleDelete = async () => {
@@ -140,12 +141,12 @@ export default function ManagementTanahPage() {
       setDialogMessage(
         "Proposal hapus tanah berhasil dibuat. Menunggu persetujuan Kepala Desa."
       );
-      setDialogs({ ...dialogs, deleteSuccess: true });
+      setDialogs((prev) => ({ ...prev, deleteSuccess: true }));
 
       await loadList();
     } catch (e) {
       setDialogMessage(e?.message || "Gagal mengajukan hapus tanah.");
-      setDialogs({ ...dialogs, deleteError: true });
+      setDialogs((prev) => ({ ...prev, deleteError: true }));
     } finally {
       setDeletingId(null);
       setPendingDelete({ id: null, name: "" });

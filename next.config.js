@@ -8,7 +8,7 @@ const nextConfig = {
       },
     ];
   },
-  // ✅ TAMBAHKAN INI:
+  // TAMBAHKAN INI:
   images: {
     remotePatterns: [
       {

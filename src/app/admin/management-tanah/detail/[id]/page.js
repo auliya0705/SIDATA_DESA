@@ -17,7 +17,7 @@ export default function DetailTanahOwnerPage() {
   const [tanah, setTanah] = useState(null);
   const SHOW_ID_COL = false;
 
-  // Dialog states
+  // Dialog states - FIXED: Use function setState
   const [dialogs, setDialogs] = useState({
     deleteConfirm: false,
     deleteSuccess: false,
@@ -27,8 +27,9 @@ export default function DetailTanahOwnerPage() {
   const [dialogMessage, setDialogMessage] = useState("");
   const [pendingDelete, setPendingDelete] = useState({ id: null, name: "" });
 
+  // FIXED: Use function setState
   const closeDialog = (dialogName) => {
-    setDialogs({ ...dialogs, [dialogName]: false });
+    setDialogs((prev) => ({ ...prev, [dialogName]: false }));
   };
 
   // Load detail tanah
@@ -74,13 +75,13 @@ export default function DetailTanahOwnerPage() {
     }));
   }, [tanah]);
 
-  // Actions
+  // Actions - FIXED: Use function setState
   const handleDeleteBidangClick = (bidangId, keterangan) => {
     setPendingDelete({
       id: bidangId,
       name: keterangan || "bidang ini",
     });
-    setDialogs({ ...dialogs, deleteConfirm: true });
+    setDialogs((prev) => ({ ...prev, deleteConfirm: true }));
   };
 
   const handleDeleteBidang = async () => {
@@ -98,13 +99,13 @@ export default function DetailTanahOwnerPage() {
       setDialogMessage(
         "Proposal hapus bidang berhasil dibuat. Menunggu persetujuan Kepala Desa."
       );
-      setDialogs({ ...dialogs, deleteSuccess: true });
+      setDialogs((prev) => ({ ...prev, deleteSuccess: true }));
 
       await loadDetail();
     } catch (err) {
       console.error("Hapus bidang gagal:", err);
       setDialogMessage(err?.message || "Gagal mengajukan hapus bidang.");
-      setDialogs({ ...dialogs, deleteError: true });
+      setDialogs((prev) => ({ ...prev, deleteError: true }));
     } finally {
       setPendingDelete({ id: null, name: "" });
     }
@@ -112,7 +113,7 @@ export default function DetailTanahOwnerPage() {
 
   const handleExport = () => {
     setDialogMessage("Fitur ekspor data akan segera tersedia");
-    setDialogs({ ...dialogs, exportInfo: true });
+    setDialogs((prev) => ({ ...prev, exportInfo: true }));
   };
 
   // UI

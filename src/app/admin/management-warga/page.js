@@ -1,3 +1,4 @@
+// src/app/admin/management-warga/page.js
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -25,7 +26,7 @@ export default function ManagementWargaPage() {
   const [wargaData, setWargaData] = useState([]);
   const [pagination, setPagination] = useState(null);
 
-  // Dialog states
+  // Dialog states - FIXED: Use function setState
   const [dialogs, setDialogs] = useState({
     loadError: false,
     deleteConfirm: false,
@@ -38,8 +39,9 @@ export default function ManagementWargaPage() {
 
   const didMountRef = useRef(false);
 
+  // FIXED: Use function setState
   const closeDialog = (dialogName) => {
-    setDialogs({ ...dialogs, [dialogName]: false });
+    setDialogs((prev) => ({ ...prev, [dialogName]: false }));
   };
 
   const loadWargaData = useCallback(
@@ -111,10 +113,10 @@ export default function ManagementWargaPage() {
       } catch (err) {
         console.error("Failed to load warga data:", err);
         setDialogMessage("Gagal memuat data warga: " + err.message);
-        setDialogs({ ...dialogs, loadError: true });
+        setDialogs((prev) => ({ ...prev, loadError: true }));
       }
     },
-    [currentPage, rowsPerPage, getWargaList, dialogs]
+    [currentPage, rowsPerPage, getWargaList]
   );
 
   useEffect(() => {
@@ -141,28 +143,30 @@ export default function ManagementWargaPage() {
 
   const handleExport = () => {
     setDialogMessage("Fitur ekspor data akan segera tersedia");
-    setDialogs({ ...dialogs, exportInfo: true });
+    setDialogs((prev) => ({ ...prev, exportInfo: true }));
   };
 
   const handleDeleteClick = (id) => {
     if (!id) {
       setDialogMessage("ID tidak valid.");
-      setDialogs({ ...dialogs, deleteError: true });
+      setDialogs((prev) => ({ ...prev, deleteError: true }));
       return;
     }
     setPendingDeleteId(id);
-    setDialogs({ ...dialogs, deleteConfirm: true });
+    setDialogs((prev) => ({ ...prev, deleteConfirm: true }));
   };
 
   const handleDelete = async () => {
     if (!pendingDeleteId) return;
+
+    closeDialog("deleteConfirm");
 
     try {
       await deleteWarga(pendingDeleteId);
       setDialogMessage(
         "Proposal hapus berhasil dibuat. Menunggu persetujuan Kepala Desa."
       );
-      setDialogs({ ...dialogs, deleteSuccess: true });
+      setDialogs((prev) => ({ ...prev, deleteSuccess: true }));
 
       // Reload data
       if (wargaData.length === 1 && currentPage > 1) {
@@ -177,7 +181,7 @@ export default function ManagementWargaPage() {
     } catch (err) {
       console.error("Delete error:", err);
       setDialogMessage("Gagal menghapus data: " + err.message);
-      setDialogs({ ...dialogs, deleteError: true });
+      setDialogs((prev) => ({ ...prev, deleteError: true }));
     } finally {
       setPendingDeleteId(null);
     }

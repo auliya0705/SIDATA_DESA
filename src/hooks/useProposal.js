@@ -17,13 +17,14 @@ export function normalizeStatus(s) {
 
 function getProposalId(rowOrId) {
   if (rowOrId == null) return null;
-  if (typeof rowOrId === "number" || typeof rowOrId === "string") return rowOrId;
+  if (typeof rowOrId === "number" || typeof rowOrId === "string")
+    return rowOrId;
   return rowOrId.approval_id ?? rowOrId.id ?? rowOrId.target_id ?? null;
 }
 
 export function useProposal() {
   const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState(null);
+  const [error, setError] = useState(null);
 
   /** Staff: daftar proposal milik saya */
   const getMyProposals = useCallback(
@@ -34,12 +35,12 @@ export function useProposal() {
         const qs = new URLSearchParams();
         qs.set("page", String(page));
         qs.set("per_page", String(perPage));
-        if (filters.q)       qs.set("q", filters.q);
-        if (filters.status)  qs.set("status", filters.status);   // approved|rejected|pending
-        if (filters.action)  qs.set("action", filters.action);   // create|update|delete
-        if (filters.module)  qs.set("module", filters.module);   // warga|tanah|bidang
-        if (filters.month)   qs.set("month", filters.month);     // "01".."12"
-        if (filters.year)    qs.set("year",  filters.year);      // "2025"
+        if (filters.q) qs.set("q", filters.q);
+        if (filters.status) qs.set("status", filters.status); // approved|rejected|pending
+        if (filters.action) qs.set("action", filters.action); // create|update|delete
+        if (filters.module) qs.set("module", filters.module); // warga|tanah|bidang
+        if (filters.month) qs.set("month", filters.month); // "01".."12"
+        if (filters.year) qs.set("year", filters.year); // "2025"
 
         const url = `${API_ENDPOINTS.STAFF.PROPOSALS.MY}?${qs.toString()}`;
         const res = await apiGet(url);
@@ -48,11 +49,11 @@ export function useProposal() {
           data: res?.data ?? [],
           pagination: {
             current_page: res?.current_page ?? page,
-            per_page:     res?.per_page ?? perPage,
-            total:        res?.total ?? 0,
-            last_page:    res?.last_page ?? 1,
-            from:         res?.from ?? 0,
-            to:           res?.to ?? 0,
+            per_page: res?.per_page ?? perPage,
+            total: res?.total ?? 0,
+            last_page: res?.last_page ?? 1,
+            from: res?.from ?? 0,
+            to: res?.to ?? 0,
           },
           raw: res,
         };
@@ -118,15 +119,20 @@ export function useProposal() {
     const id = getProposalId(rowOrId);
     try {
       const payload = note ? { note } : null;
-      return await apiPost(API_ENDPOINTS.PROPOSAL.APPROVE(id), payload);
+      const result = await apiPost(API_ENDPOINTS.PROPOSAL.APPROVE(id), payload);
+      return result;
     } catch (err) {
       const d = err?.data || {};
       const pieces = [
         err?.message,
         d?.friendly,
         d?.error,
-        d?.apply_error && (typeof d.apply_error === "string" ? d.apply_error : JSON.stringify(d.apply_error)),
-        d?.errors && (typeof d.errors === "string" ? d.errors : JSON.stringify(d.errors)),
+        d?.apply_error &&
+          (typeof d.apply_error === "string"
+            ? d.apply_error
+            : JSON.stringify(d.apply_error)),
+        d?.errors &&
+          (typeof d.errors === "string" ? d.errors : JSON.stringify(d.errors)),
       ].filter(Boolean);
       const msg = pieces.join("\n— ");
       setError(msg || "Gagal menyetujui proposal");
@@ -142,14 +148,16 @@ export function useProposal() {
     const id = getProposalId(rowOrId);
     try {
       const payload = reason ? { reason } : null;
-      return await apiPost(API_ENDPOINTS.PROPOSAL.REJECT(id), payload);
+      const result = await apiPost(API_ENDPOINTS.PROPOSAL.REJECT(id), payload);
+      return result;
     } catch (err) {
       const d = err?.data || {};
       const pieces = [
         err?.message,
         d?.friendly,
         d?.error,
-        d?.errors && (typeof d.errors === "string" ? d.errors : JSON.stringify(d.errors)),
+        d?.errors &&
+          (typeof d.errors === "string" ? d.errors : JSON.stringify(d.errors)),
       ].filter(Boolean);
       const msg = pieces.join("\n— ");
       setError(msg || "Gagal menolak proposal");

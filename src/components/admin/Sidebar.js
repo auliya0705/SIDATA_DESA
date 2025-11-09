@@ -71,11 +71,11 @@ export default function Sidebar() {
         {/* Logo */}
         <div className="p-6 flex items-center space-x-3 border-b border-teal-600">
           <Image
-            src="/images/logobb.png"
+            src="/images/logo2.png"
             alt="Logo"
-            width={40}
-            height={40}
-            className="bg-white rounded-full p-1"
+            width={80}
+            height={80}
+            className="p-4"
           />
           <div>
             <h1 className="font-bold text-lg">SIDATA</h1>

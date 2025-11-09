@@ -120,7 +120,7 @@ export default function LoginPage() {
         ) {
           router.push("/admin/dashboard"); // Kepala Desa - ada approval
         } else {
-          router.push("/admin/management-tanah"); // Staff - langsung ke CRUD
+          router.push("/admin/dashboard"); // Staff 
         }
       } else {
         setErrors({ general: "Format response tidak valid" });
@@ -311,21 +311,6 @@ export default function LoginPage() {
                 )}
               </button>
             </form>
-
-            {/* Demo Accounts Info */}
-            <div className="mt-6 p-4 bg-teal-50 border border-teal-200 rounded-lg">
-              <p className="text-xs font-semibold text-teal-800 mb-2">
-                📌 Akun Demo:
-              </p>
-              <div className="space-y-1 text-xs text-teal-700">
-                <p>
-                  <strong>Kepala Desa:</strong> admin@kepdes.com / 12345678
-                </p>
-                <p>
-                  <strong>Staff:</strong> admin1@staff.com / 12345678
-                </p>
-              </div>
-            </div>
 
             {/* Info */}
             <div className="mt-4 text-center text-xs text-gray-500">
