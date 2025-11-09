@@ -20,7 +20,7 @@ export default function EditWargaPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // Dialog states
+  // Dialog states - FIXED: Use function setState
   const [dialogs, setDialogs] = useState({
     loadError: false,
     nikConflict: false,
@@ -29,8 +29,9 @@ export default function EditWargaPage() {
   });
   const [dialogMessage, setDialogMessage] = useState("");
 
+  // FIXED: Use function setState
   const closeDialog = (dialogName) => {
-    setDialogs({ ...dialogs, [dialogName]: false });
+    setDialogs((prev) => ({ ...prev, [dialogName]: false }));
   };
 
   const handleLoadErrorClose = () => {
@@ -75,7 +76,7 @@ export default function EditWargaPage() {
     } catch (err) {
       console.error("Failed to load warga data:", err);
       setDialogMessage("Gagal memuat data warga: " + err.message);
-      setDialogs({ ...dialogs, loadError: true });
+      setDialogs((prev) => ({ ...prev, loadError: true }));
     }
   };
 
@@ -92,7 +93,7 @@ export default function EditWargaPage() {
               (conflictId ? ` (ID ${conflictId})` : "") +
               `.\n\nGunakan NIK lain atau batalkan perubahan NIK.`
           );
-          setDialogs({ ...dialogs, nikConflict: true });
+          setDialogs((prev) => ({ ...prev, nikConflict: true }));
           return;
         }
       }
@@ -148,14 +149,15 @@ export default function EditWargaPage() {
         );
       }
 
+      // Success - FIXED: Use function setState
       setDialogMessage(
         "Proposal perubahan berhasil dibuat! Menunggu persetujuan Kepala Desa."
       );
-      setDialogs({ ...dialogs, success: true });
+      setDialogs((prev) => ({ ...prev, success: true }));
     } catch (err) {
       console.error("Edit error:", err);
       setDialogMessage("Gagal membuat proposal: " + err.message);
-      setDialogs({ ...dialogs, error: true });
+      setDialogs((prev) => ({ ...prev, error: true }));
     } finally {
       setSubmitting(false);
     }

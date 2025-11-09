@@ -40,10 +40,10 @@ export default function Navbar() {
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-3">
             <Image
-              src="/images/logobb.png"
+              src="/images/logo2.png"
               alt="Logo"
-              width={60}
-              height={60}
+              width={40}
+              height={40}
               priority
             />
             <span className="text-teal-800 font-bold text-sm">SIDATA DESA</span>

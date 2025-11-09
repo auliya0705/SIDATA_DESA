@@ -34,8 +34,8 @@ export default function ApprovalPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [selectedModule, setSelectedModule] = useState(""); // "", "warga", "tanah", "bidang"
-  const [selectedStatus, setSelectedStatus] = useState(""); // "", "pending", "approved", "rejected"
+  const [selectedModule, setSelectedModule] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState("");
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -56,7 +56,7 @@ export default function ApprovalPage() {
     rejected: 0,
   });
 
-  // Dialog states
+  // Dialog states - FIXED: Using function setState
   const [dialogs, setDialogs] = useState({
     unauthorized: false,
     approveConfirm: false,
@@ -81,7 +81,6 @@ export default function ApprovalPage() {
     }
   };
 
-  // Ambil NIK & ignoreId dari row proposal (versi robust)
   const pickNikAndIgnoreId = (row) => {
     const payload = parseMaybeJson(row?.payload) ?? row?.payload ?? {};
     const action = String(row?.action || "").toLowerCase();
@@ -111,7 +110,6 @@ export default function ApprovalPage() {
     return { nikProposed, ignoreId };
   };
 
-  // Fallback preview untuk BIDANG lama (tanpa preview_pemilik di payload)
   async function fetchBidangPreview(bidangId) {
     try {
       const d = await apiGet(API_ENDPOINTS.BIDANG.SHOW(bidangId));
@@ -126,7 +124,6 @@ export default function ApprovalPage() {
     }
   }
 
-  // Fallback preview untuk TANAH (agar list delete/update tanah menampilkan pemilik)
   async function fetchTanahPreview(tanahId) {
     try {
       const d = await apiGet(API_ENDPOINTS.TANAH.SHOW(tanahId));
@@ -139,8 +136,9 @@ export default function ApprovalPage() {
     }
   }
 
+  // FIXED: Use function setState to prevent stale state
   const closeDialog = (dialogName) => {
-    setDialogs({ ...dialogs, [dialogName]: false });
+    setDialogs((prev) => ({ ...prev, [dialogName]: false }));
   };
 
   const handleUnauthorizedClose = () => {
@@ -152,7 +150,7 @@ export default function ApprovalPage() {
   useEffect(() => {
     const user = getCurrentUser();
     if (!user || (user.role !== "kepala_desa" && user.role !== "kepala")) {
-      setDialogs({ ...dialogs, unauthorized: true });
+      setDialogs((prev) => ({ ...prev, unauthorized: true }));
     }
   }, [router]);
 
@@ -177,7 +175,6 @@ export default function ApprovalPage() {
       const response = await getProposalList(params);
       const rows = response?.data ?? [];
 
-      // 1) Ambil BEFORE warga untuk baris update warga
       const wargaUpdateRows = rows.filter(
         (r) => r.module === "warga" && r.action === "update" && r.target_id
       );
@@ -193,7 +190,6 @@ export default function ApprovalPage() {
         })
       );
 
-      // 2) Ambil fallback preview BIDANG/TANAH yang belum punya preview di payload
       const bidangNeeding = rows.filter((r) => {
         if (r.module !== "bidang" || !r.target_id) return false;
         const payload = parseMaybeJson(r.payload) ?? r.payload ?? {};
@@ -220,12 +216,10 @@ export default function ApprovalPage() {
         }),
       ]);
 
-      // 3) Normalisasi baris
       const proposalRowsNormalized = rows.map((row) => {
         const payload = parseMaybeJson(row.payload) ?? row.payload ?? {};
         const snap = payload?.snapshot ?? null;
 
-        // preview untuk bidang/tanah
         let pv = null;
         if (row.module === "bidang") {
           pv =
@@ -250,7 +244,6 @@ export default function ApprovalPage() {
           }
         }
 
-        // khusus warga/update → tampilkan old → new bila berubah
         if (row.module === "warga" && row.action === "update") {
           const before = beforeMap[row.target_id] || {};
           const newNik = payload?.nik ?? null;
@@ -281,7 +274,6 @@ export default function ApprovalPage() {
           };
         }
 
-        // default untuk create/update/delete non-warga
         switch (row.action) {
           case "create":
             nik = nik ?? payload?.nik ?? null;
@@ -330,7 +322,6 @@ export default function ApprovalPage() {
         last_page: response?.last_page || 1,
       });
 
-      // gunakan stats dari backend bila ada, kalau tidak hitung lokal
       if (response?.stats) {
         setStats({
           pending: response.stats.pending ?? 0,
@@ -343,7 +334,7 @@ export default function ApprovalPage() {
     } catch (err) {
       console.error("Error fetching proposals:", err);
       setDialogMessage("Gagal memuat data proposal: " + err.message);
-      setDialogs({ ...dialogs, loadError: true });
+      setDialogs((prev) => ({ ...prev, loadError: true }));
     } finally {
       setIsRefreshing(false);
     }
@@ -363,11 +354,10 @@ export default function ApprovalPage() {
     setCurrentPage(1);
   };
 
-  // ========= APPROVE with preflight NIK duplicate check =========
+  // FIXED: All setDialogs use function setState
   const handleApproveClick = async (row) => {
     setPendingAction(row);
 
-    // Check NIK duplicate for warga create/update
     if (
       row?.module === "warga" &&
       (row?.action === "create" || row?.action === "update")
@@ -386,7 +376,7 @@ export default function ApprovalPage() {
                 (conflictId ? `• ID konflik: ${conflictId}\n` : "") +
                 `\nSilakan minta pengusul mengganti NIK atau lakukan EDIT data yang benar.`
             );
-            setDialogs({ ...dialogs, nikConflict: true });
+            setDialogs((prev) => ({ ...prev, nikConflict: true }));
             return;
           }
         } catch (err) {
@@ -395,21 +385,22 @@ export default function ApprovalPage() {
       }
     }
 
-    // Show confirmation dialog
-    setDialogs({ ...dialogs, approveConfirm: true });
+    setDialogs((prev) => ({ ...prev, approveConfirm: true }));
   };
 
   const handleApprove = async () => {
     if (!pendingAction) return;
 
+    closeDialog("approveConfirm");
+
     try {
       const res = await approveProposal(pendingAction);
       setDialogMessage(res?.message || "Proposal berhasil disetujui!");
-      setDialogs({ ...dialogs, approveSuccess: true });
+      setDialogs((prev) => ({ ...prev, approveSuccess: true }));
       await fetchProposals();
     } catch (err) {
       setDialogMessage(err.message || "Gagal menyetujui proposal");
-      setDialogs({ ...dialogs, approveError: true });
+      setDialogs((prev) => ({ ...prev, approveError: true }));
     } finally {
       setPendingAction(null);
     }
@@ -417,16 +408,18 @@ export default function ApprovalPage() {
 
   const handleRejectClick = (row) => {
     setPendingAction(row);
-    setDialogs({ ...dialogs, rejectPrompt: true });
+    setDialogs((prev) => ({ ...prev, rejectPrompt: true }));
   };
 
   const handleReject = async (reason) => {
     if (!pendingAction) return;
 
+    closeDialog("rejectPrompt");
+
     try {
       const res = await rejectProposal(pendingAction, reason);
       setDialogMessage(res?.message || "Proposal berhasil ditolak!");
-      setDialogs({ ...dialogs, rejectSuccess: true });
+      setDialogs((prev) => ({ ...prev, rejectSuccess: true }));
       await fetchProposals();
     } catch (err) {
       if (err.message.includes("404")) {
@@ -436,7 +429,7 @@ export default function ApprovalPage() {
       } else {
         setDialogMessage(err.message || "Gagal menolak proposal");
       }
-      setDialogs({ ...dialogs, rejectError: true });
+      setDialogs((prev) => ({ ...prev, rejectError: true }));
     } finally {
       setPendingAction(null);
     }
@@ -447,7 +440,6 @@ export default function ApprovalPage() {
     setShowDetailModal(true);
   };
 
-  // ---- Pagination helper
   const renderPagination = () => {
     const pages = [];
     const totalPages = pagination.last_page;
@@ -485,7 +477,6 @@ export default function ApprovalPage() {
     return actionMap[action] || action;
   };
 
-  // Prevent access if not Kepala Desa
   const user = getCurrentUser();
   if (!user || (user.role !== "kepala_desa" && user.role !== "kepala")) {
     return (
@@ -511,7 +502,6 @@ export default function ApprovalPage() {
     );
   }
 
-  // helper untuk render diff di modal (khusus warga/update)
   const renderWargaDiff = (row) => {
     if (row?.module !== "warga" || row?.action !== "update") return null;
     const before = row?._before || {};
@@ -581,7 +571,6 @@ export default function ApprovalPage() {
 
   return (
     <div className="space-y-6">
-      {/* Error Alert */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start space-x-3">
           <AlertCircle
@@ -595,7 +584,6 @@ export default function ApprovalPage() {
         </div>
       )}
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between">
@@ -640,7 +628,6 @@ export default function ApprovalPage() {
         </div>
       </div>
 
-      {/* Title Section with Filters */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex items-center space-x-3">
@@ -684,7 +671,6 @@ export default function ApprovalPage() {
         </div>
       </div>
 
-      {/* Action Bar */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="relative w-full md:w-96">
@@ -712,7 +698,6 @@ export default function ApprovalPage() {
         </div>
       </div>
 
-      {/* Table */}
       {loading && proposals.length === 0 ? (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12">
           <div className="flex flex-col items-center justify-center">
@@ -742,7 +727,6 @@ export default function ApprovalPage() {
         />
       )}
 
-      {/* Pagination */}
       {proposals.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
@@ -809,7 +793,6 @@ export default function ApprovalPage() {
         </div>
       )}
 
-      {/* Button Kembali */}
       <div className="flex justify-end">
         <button
           onClick={() => router.back()}
@@ -819,7 +802,6 @@ export default function ApprovalPage() {
         </button>
       </div>
 
-      {/* Detail Modal */}
       <ApprovalDetailModal
         isOpen={showDetailModal}
         selectedItem={selectedItem}
@@ -832,9 +814,6 @@ export default function ApprovalPage() {
         renderWargaDiff={renderWargaDiff}
       />
 
-      {/* Custom Dialogs */}
-
-      {/* Unauthorized */}
       <AlertDialog
         isOpen={dialogs.unauthorized}
         onClose={handleUnauthorizedClose}
@@ -843,7 +822,6 @@ export default function ApprovalPage() {
         type="error"
       />
 
-      {/* NIK Conflict */}
       <AlertDialog
         isOpen={dialogs.nikConflict}
         onClose={() => closeDialog("nikConflict")}
@@ -852,7 +830,6 @@ export default function ApprovalPage() {
         type="error"
       />
 
-      {/* Approve Confirmation */}
       <ConfirmDialog
         isOpen={dialogs.approveConfirm}
         onClose={() => closeDialog("approveConfirm")}
@@ -864,7 +841,6 @@ export default function ApprovalPage() {
         type="success"
       />
 
-      {/* Reject Prompt */}
       <PromptDialog
         isOpen={dialogs.rejectPrompt}
         onClose={() => closeDialog("rejectPrompt")}
@@ -878,7 +854,6 @@ export default function ApprovalPage() {
         cancelText="Batal"
       />
 
-      {/* Success/Error Alerts */}
       <AlertDialog
         isOpen={dialogs.approveSuccess}
         onClose={() => closeDialog("approveSuccess")}

@@ -66,7 +66,7 @@ export default function PromptDialog({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black bg-opacity-50 z-50 animate-fadeIn"
+        className="fixed inset-0 backdrop-contrast-50 z-50 animate-fadeIn"
         onClick={handleClose}
       ></div>
 
