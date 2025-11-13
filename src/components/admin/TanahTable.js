@@ -13,23 +13,7 @@ export default function TanahTable({
 }) {
   const [showActionMenu, setShowActionMenu] = useState(null);
 
-  const tanahData =
-    data.length > 0
-      ? data
-      : [
-          {
-            id: 1,
-            nama_pemilik: "Muhammad Vendra Hastagiyan",
-            total_luas: 120,
-            jumlah_bidang: 3,
-          },
-          {
-            id: 5,
-            nama_pemilik: "Muhammad Vendra Hastagiyan",
-            total_luas: 120,
-            jumlah_bidang: 2,
-          },
-        ];
+  const tanahData = data;
 
   const fmtLuas = (n) =>
     typeof n === "number" ? `${n.toLocaleString("id-ID")} m²` : `${n} m²`;

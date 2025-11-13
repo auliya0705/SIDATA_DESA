@@ -13,16 +13,23 @@ import {
 } from "lucide-react";
 import TanahTable from "@/components/admin/TanahTable";
 import { apiGet, apiDelete } from "@/lib/api";
-import { API_ENDPOINTS } from "@/lib/config";
+import { API_ENDPOINTS, getApiUrl } from "@/lib/config";
+import { getToken } from "@/lib/auth";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import AlertDialog from "@/components/ui/AlertDialog";
 
 export default function ManagementTanahPage() {
+  // Default: bulan & tahun sekarang (data terbaru)
+  const today = new Date();
+  const defaultMonth = String(today.getMonth() + 1).padStart(2, "0"); // "01".."12"
+  const defaultYear = String(today.getFullYear());
+
   // UI states
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [selectedMonth, setSelectedMonth] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
+  const [selectedYear, setSelectedYear] = useState(defaultYear);
   const [deletingId, setDeletingId] = useState(null);
 
   // Data states
@@ -58,8 +65,9 @@ export default function ManagementTanahPage() {
     qs.set("per_page", String(rowsPerPage));
     if (searchQuery?.trim()) qs.set("q", searchQuery.trim());
     if (selectedMonth) qs.set("month", selectedMonth);
+    if (selectedYear) qs.set("year", selectedYear);
     return `?${qs.toString()}`;
-  }, [currentPage, rowsPerPage, searchQuery, selectedMonth]);
+  }, [currentPage, rowsPerPage, searchQuery, selectedMonth, selectedYear]);
 
   // Loader
   const loadList = async () => {
@@ -114,9 +122,50 @@ export default function ManagementTanahPage() {
     setCurrentPage(1);
   };
 
-  const handleExport = () => {
-    setDialogMessage("Fitur ekspor data akan segera tersedia");
-    setDialogs((prev) => ({ ...prev, exportInfo: true }));
+  // 🔹 Export PDF Buku Tanah Desa, sinkron dengan filter bulan & tahun di UI
+  const handleExport = async () => {
+    try {
+      const token = getToken();
+
+      const baseUrl = getApiUrl(
+        API_ENDPOINTS.STAFF.PROPOSALS.TANAH.EXPORTS.BUKU_TANAH
+      );
+
+      const params = new URLSearchParams();
+      if (selectedMonth) params.set("month", selectedMonth);
+      if (selectedYear) params.set("year", selectedYear);
+
+      const url =
+        params.toString().length > 0 ? `${baseUrl}?${params.toString()}` : baseUrl;
+
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "application/pdf",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Gagal mengekspor PDF (${res.status}) ${text}`);
+      }
+
+      const blob = await res.blob();
+      const fileUrl = window.URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = fileUrl;
+      a.download = "buku-tanah-desa.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(fileUrl);
+    } catch (err) {
+      console.error("Export PDF error:", err);
+      setDialogMessage(err?.message || "Gagal mengekspor Buku Tanah Desa.");
+      setDialogs((prev) => ({ ...prev, exportInfo: true }));
+    }
   };
 
   const handleDeleteClick = (id) => {
@@ -155,6 +204,11 @@ export default function ManagementTanahPage() {
 
   const handleMonthFilter = (e) => {
     setSelectedMonth(e.target.value);
+    setCurrentPage(1);
+  };
+
+  const handleYearFilter = (e) => {
+    setSelectedYear(e.target.value);
     setCurrentPage(1);
   };
 
@@ -199,6 +253,13 @@ export default function ManagementTanahPage() {
     { value: "12", label: "Desember" },
   ];
 
+  // Tahun: range sederhana sekitar tahun sekarang
+  const currentYear = today.getFullYear();
+  const years = [];
+  for (let y = currentYear; y >= currentYear - 5; y--) {
+    years.push({ value: String(y), label: String(y) });
+  }
+
   const totalPages = pagination.last_page || 1;
 
   return (
@@ -212,13 +273,15 @@ export default function ManagementTanahPage() {
             </h2>
             {selectedMonth && (
               <p className="text-sm text-gray-500 mt-1">
-                Bulan: {months.find((m) => m.value === selectedMonth)?.label}
+                Bulan:{" "}
+                {months.find((m) => m.value === selectedMonth)?.label || "-"}{" "}
+                {selectedYear && ` ${selectedYear}`}
               </p>
             )}
             {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
           </div>
 
-          {/* Month Filter */}
+          {/* Month & Year Filter */}
           <div className="flex items-center space-x-2">
             <Calendar size={20} className="text-gray-500" />
             <select
@@ -229,6 +292,18 @@ export default function ManagementTanahPage() {
               {months.map((month) => (
                 <option key={month.value} value={month.value}>
                   {month.label}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={selectedYear}
+              onChange={handleYearFilter}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm"
+            >
+              {years.map((year) => (
+                <option key={year.value} value={year.value}>
+                  {year.label}
                 </option>
               ))}
             </select>
@@ -338,7 +413,9 @@ export default function ManagementTanahPage() {
             ))}
 
             <button
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              onClick={() =>
+                setCurrentPage((p) => Math.min(totalPages, p + 1))
+              }
               disabled={pagination.current_page >= totalPages}
               className="p-2 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
             >

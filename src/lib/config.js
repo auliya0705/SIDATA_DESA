@@ -81,6 +81,9 @@ export const API_ENDPOINTS = {
           DELETE: (id) => `/staff/proposals/bidang/${id}`,  // DELETE
           SHOW: (id) => `/bidang/${id}`,
         },
+        EXPORTS: {
+          BUKU_TANAH: "/staff/management-tanah/export/pdf",
+        },
       },
       WARGA: {
         CREATE: "/staff/proposals/warga",
