@@ -8,7 +8,7 @@ import {
   CircleMarker,
   useMapEvents,
 } from "react-leaflet";
-import { Trash2, Save, RotateCcw } from "lucide-react";
+import { Save, RotateCcw, Undo } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import AlertDialog from "@/components/ui/AlertDialog";
@@ -344,7 +344,6 @@ export default function MapInput({
   // Dialog states
   const [dialogs, setDialogs] = useState({
     redrawConfirm: false,
-    clearConfirm: false,
     resetConfirm: false,
     minPointsAlert: false,
   });
@@ -421,14 +420,12 @@ export default function MapInput({
     setIsDrawing(false);
   };
 
-  const handleClearClick = () => {
-    setDialogs({ ...dialogs, clearConfirm: true });
-  };
-
-  const handleClear = () => {
-    setPoints([]);
-    setIsDrawing(false);
-    setSaved(false);
+  // Undo last point - ONLY during drawing
+  const handleUndo = () => {
+    if (points.length > 0) {
+      setPoints((prev) => prev.slice(0, -1));
+      setSaved(false);
+    }
   };
 
   const handleResetClick = () => {
@@ -453,6 +450,7 @@ export default function MapInput({
       {/* Control Buttons */}
       <div className="flex flex-wrap gap-2">
         {!isDrawing ? (
+          // NOT DRAWING - Show start/redraw button
           <button
             type="button"
             onClick={handleStartDrawingClick}
@@ -461,15 +459,32 @@ export default function MapInput({
             {points.length > 0 ? "Gambar Ulang Polygon" : "Mulai Menggambar"}
           </button>
         ) : (
-          <button
-            type="button"
-            onClick={handleFinishDrawing}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
-          >
-            Selesai Menggambar ({points.length} titik)
-          </button>
+          // DRAWING MODE - Show finish + undo
+          <>
+            <button
+              type="button"
+              onClick={handleFinishDrawing}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+            >
+              Selesai Menggambar ({points.length} titik)
+            </button>
+
+            {/* UNDO - Only visible during drawing */}
+            {points.length > 0 && (
+              <button
+                type="button"
+                onClick={handleUndo}
+                className="flex items-center space-x-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium"
+                title="Hapus titik terakhir"
+              >
+                <Undo size={16} />
+                <span>Undo</span>
+              </button>
+            )}
+          </>
         )}
 
+        {/* AFTER DRAWING - Show save/reset buttons */}
         {points.length > 0 && !isDrawing && (
           <>
             <button
@@ -499,15 +514,6 @@ export default function MapInput({
                 <span>Reset</span>
               </button>
             )}
-
-            <button
-              type="button"
-              onClick={handleClearClick}
-              className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
-            >
-              <Trash2 size={16} />
-              <span>Hapus</span>
-            </button>
           </>
         )}
       </div>
@@ -517,8 +523,9 @@ export default function MapInput({
         {isDrawing ? (
           <p>
             <strong>Mode Menggambar:</strong> Klik pada peta untuk menambah
-            titik polygon. Minimal 3 titik. Klik "Selesai Menggambar" jika
-            sudah.
+            titik polygon. Salah? Klik <strong>"Undo"</strong> untuk hapus titik
+            terakhir dan lanjut gambar lagi. Minimal 3 titik. Klik "Selesai
+            Menggambar" jika sudah.
           </p>
         ) : points.length > 0 ? (
           <p>
@@ -537,7 +544,7 @@ export default function MapInput({
 
       {/* Map */}
       <div
-        className="border border-gray-300 rounded-lg overflow-hidden"
+        className="border border-gray-300 rounded-lg overflow-hidden relative"
         style={{ height }}
       >
         <MapContainer
@@ -570,8 +577,12 @@ export default function MapInput({
             <Polygon
               positions={points}
               pathOptions={{
-                color: saved ? "#10b981" : "#f59e0b",
-                fillColor: saved ? "#10b981" : "#f59e0b",
+                color: saved ? "#10b981" : isDrawing ? "#3b82f6" : "#f59e0b",
+                fillColor: saved
+                  ? "#10b981"
+                  : isDrawing
+                  ? "#3b82f6"
+                  : "#f59e0b",
                 fillOpacity: 0.3,
                 weight: 2,
               }}
@@ -586,8 +597,8 @@ export default function MapInput({
                 center={point}
                 radius={5}
                 pathOptions={{
-                  color: "darkred",
-                  fillColor: "red",
+                  color: isDrawing ? "#1e40af" : "darkred",
+                  fillColor: isDrawing ? "#3b82f6" : "red",
                   fillOpacity: 0.8,
                   weight: 2,
                 }}
@@ -612,56 +623,44 @@ export default function MapInput({
         </div>
       )}
 
-      {/* Dialogs */}
-      <ConfirmDialog
-        isOpen={dialogs.redrawConfirm}
-        onClose={() => closeDialog("redrawConfirm")}
-        onConfirm={() => {
-          closeDialog("redrawConfirm");
-          handleStartDrawing();
-        }}
-        title="Gambar Ulang Polygon?"
-        message="Menggambar polygon baru akan menghapus yang lama. Lanjutkan?"
-        confirmText="Ya, Gambar Ulang"
-        cancelText="Batal"
-        type="warning"
-      />
+      {/* Dialogs - z-index 9999 to be above map */}
+      <div style={{ position: "relative", zIndex: 9999 }}>
+        <ConfirmDialog
+          isOpen={dialogs.redrawConfirm}
+          onClose={() => closeDialog("redrawConfirm")}
+          onConfirm={() => {
+            closeDialog("redrawConfirm");
+            handleStartDrawing();
+          }}
+          title="Gambar Ulang Polygon?"
+          message="Menggambar polygon baru akan menghapus yang lama. Lanjutkan?"
+          confirmText="Ya, Gambar Ulang"
+          cancelText="Batal"
+          type="warning"
+        />
 
-      <ConfirmDialog
-        isOpen={dialogs.clearConfirm}
-        onClose={() => closeDialog("clearConfirm")}
-        onConfirm={() => {
-          closeDialog("clearConfirm");
-          handleClear();
-        }}
-        title="Hapus Polygon?"
-        message="Yakin ingin menghapus polygon? Semua titik akan hilang."
-        confirmText="Ya, Hapus"
-        cancelText="Batal"
-        type="danger"
-      />
+        <ConfirmDialog
+          isOpen={dialogs.resetConfirm}
+          onClose={() => closeDialog("resetConfirm")}
+          onConfirm={() => {
+            closeDialog("resetConfirm");
+            handleReset();
+          }}
+          title="Reset Koordinat?"
+          message="Yakin ingin reset ke koordinat awal? Perubahan yang belum disimpan akan hilang."
+          confirmText="Ya, Reset"
+          cancelText="Batal"
+          type="warning"
+        />
 
-      <ConfirmDialog
-        isOpen={dialogs.resetConfirm}
-        onClose={() => closeDialog("resetConfirm")}
-        onConfirm={() => {
-          closeDialog("resetConfirm");
-          handleReset();
-        }}
-        title="Reset Koordinat?"
-        message="Yakin ingin reset ke koordinat awal? Perubahan yang belum disimpan akan hilang."
-        confirmText="Ya, Reset"
-        cancelText="Batal"
-        type="warning"
-      />
-
-      <AlertDialog
-        isOpen={dialogs.minPointsAlert}
-        onClose={() => closeDialog("minPointsAlert")}
-        title="Polygon Belum Lengkap"
-        message="Polygon harus memiliki minimal 3 titik untuk dapat disimpan."
-        type="warning"
-      />
+        <AlertDialog
+          isOpen={dialogs.minPointsAlert}
+          onClose={() => closeDialog("minPointsAlert")}
+          title="Polygon Belum Lengkap"
+          message="Polygon harus memiliki minimal 3 titik untuk dapat disimpan."
+          type="warning"
+        />
+      </div>
     </div>
   );
 }

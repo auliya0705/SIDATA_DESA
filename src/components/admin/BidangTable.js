@@ -1,10 +1,8 @@
 // src/components/admin/BidangTable.js
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useState, useRef, useEffect } from "react";
 import { MoreVertical, Eye, Edit, Trash2 } from "lucide-react";
-import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 export default function BidangTable({
   data = [],
@@ -15,10 +13,8 @@ export default function BidangTable({
   showIdColumn = false,
 }) {
   const [openMenu, setOpenMenu] = useState(null);
-
-  // Dialog state
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const buttonRefs = useRef({});
 
   const rows = data.length
     ? data
@@ -42,24 +38,41 @@ export default function BidangTable({
   const fmt = (n) =>
     typeof n === "number" ? `${n.toLocaleString("id-ID")} m²` : `${n} m²`;
 
-  const handleDeleteClick = (bidang) => {
-    setPendingDelete(bidang);
-    setShowDeleteConfirm(true);
-    setOpenMenu(null);
-  };
-
-  const handleDeleteConfirm = () => {
-    if (pendingDelete) {
-      onDelete && onDelete(pendingDelete);
+  // Calculate menu position when opened
+  useEffect(() => {
+    if (openMenu !== null) {
+      const buttonEl = buttonRefs.current[openMenu];
+      if (buttonEl) {
+        const rect = buttonEl.getBoundingClientRect();
+        setMenuPosition({
+          top: rect.bottom + window.scrollY,
+          left: rect.left + window.scrollX - 160, // 160px = menu width offset
+        });
+      }
     }
-    setShowDeleteConfirm(false);
-    setPendingDelete(null);
-  };
+  }, [openMenu]);
 
-  const getDeleteMessage = () => {
-    if (!pendingDelete) return "";
-    const keterangan = pendingDelete.keterangan || "bidang ini";
-    return `Yakin ingin menghapus bidang "${keterangan}"? Ini akan membuat proposal penghapusan yang perlu disetujui Kepala Desa.`;
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (openMenu !== null) {
+        const isClickInsideMenu = e.target.closest(".action-menu-dropdown");
+        const isClickInsideButton = e.target.closest(".action-menu-button");
+        if (!isClickInsideMenu && !isClickInsideButton) {
+          setOpenMenu(null);
+        }
+      }
+    };
+
+    if (openMenu !== null) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [openMenu]);
+
+  const handleMenuToggle = (id) => {
+    setOpenMenu(openMenu === id ? null : id);
   };
 
   return (
@@ -90,7 +103,7 @@ export default function BidangTable({
               <th className="px-6 py-3 text-left text-xs font-semibold uppercase">
                 Keterangan
               </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold uppercase"></th>
+              <th className="px-6 py-3 text-left text-xs font-semibold uppercase w-16"></th>
             </tr>
           </thead>
 
@@ -118,59 +131,14 @@ export default function BidangTable({
                   {r.keterangan || "-"}
                 </td>
 
-                <td className="px-6 py-3 text-sm text-gray-700 relative">
+                <td className="px-6 py-3 text-sm text-gray-700">
                   <button
-                    onClick={() => setOpenMenu(openMenu === r.id ? null : r.id)}
-                    className="p-1 hover:bg-gray-100 rounded"
+                    ref={(el) => (buttonRefs.current[r.id] = el)}
+                    onClick={() => handleMenuToggle(r.id)}
+                    className="action-menu-button p-1 hover:bg-gray-100 rounded"
                   >
                     <MoreVertical size={18} />
                   </button>
-
-                  {openMenu === r.id && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
-                      <button
-                        onClick={() => {
-                          onView && onView(r);
-                          setOpenMenu(null);
-                        }}
-                        className="w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-50 text-gray-700 text-left"
-                      >
-                        <Eye size={16} />
-                        <span>Lihat</span>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          onEdit && onEdit(r);
-                          setOpenMenu(null);
-                        }}
-                        className="w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-50 text-gray-700 text-left"
-                      >
-                        <Edit size={16} />
-                        <span>Edit</span>
-                      </button>
-
-                      <button
-                        onClick={() => handleDeleteClick(r)}
-                        disabled={deletingId === r.id}
-                        className={`w-full flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-left ${
-                          deletingId === r.id
-                            ? "text-red-300 cursor-not-allowed"
-                            : "text-red-600"
-                        }`}
-                        title={
-                          deletingId === r.id
-                            ? "Sedang mengajukan penghapusan…"
-                            : "Ajukan penghapusan bidang"
-                        }
-                      >
-                        <Trash2 size={16} />
-                        <span>
-                          {deletingId === r.id ? "Menghapus…" : "Hapus"}
-                        </span>
-                      </button>
-                    </div>
-                  )}
                 </td>
               </tr>
             ))}
@@ -178,17 +146,59 @@ export default function BidangTable({
         </table>
       </div>
 
-      {/* Delete Confirmation Dialog */}
-      <ConfirmDialog
-        isOpen={showDeleteConfirm}
-        onClose={() => setShowDeleteConfirm(false)}
-        onConfirm={handleDeleteConfirm}
-        title="Konfirmasi Hapus Bidang"
-        message={getDeleteMessage()}
-        confirmText="Ya, Hapus"
-        cancelText="Batal"
-        type="danger"
-      />
+      {/* Action Menu - OUTSIDE table, FIXED position */}
+      {openMenu !== null && (
+        <div
+          className="action-menu-dropdown fixed w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-50"
+          style={{
+            top: `${menuPosition.top}px`,
+            left: `${menuPosition.left}px`,
+          }}
+        >
+          <button
+            onClick={() => {
+              onView && onView(rows.find((r) => r.id === openMenu));
+              setOpenMenu(null);
+            }}
+            className="w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-50 text-gray-700 text-left rounded-t-lg"
+          >
+            <Eye size={16} />
+            <span>Lihat</span>
+          </button>
+
+          <button
+            onClick={() => {
+              onEdit && onEdit(rows.find((r) => r.id === openMenu));
+              setOpenMenu(null);
+            }}
+            className="w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-50 text-gray-700 text-left"
+          >
+            <Edit size={16} />
+            <span>Edit</span>
+          </button>
+
+          <button
+            onClick={() => {
+              onDelete && onDelete(rows.find((r) => r.id === openMenu));
+              setOpenMenu(null);
+            }}
+            disabled={deletingId === openMenu}
+            className={`w-full flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-left rounded-b-lg ${
+              deletingId === openMenu
+                ? "text-red-300 cursor-not-allowed"
+                : "text-red-600"
+            }`}
+            title={
+              deletingId === openMenu
+                ? "Sedang mengajukan penghapusan…"
+                : "Ajukan penghapusan bidang"
+            }
+          >
+            <Trash2 size={16} />
+            <span>{deletingId === openMenu ? "Menghapus…" : "Hapus"}</span>
+          </button>
+        </div>
+      )}
     </>
   );
 }
