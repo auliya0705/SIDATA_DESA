@@ -17,21 +17,21 @@ export default function TanahForm({
   initialData = null,
   mode = "create",
   isIdentitasReadOnly = false,
-  onSubmit,               // ← CreateTanahPage akan inject ini
+  onSubmit,
   loading = false,
 }) {
   const defaultFormData = {
     // identitas
     nama_pemilik: "",
     warga_id: "",
-    nomor_urut: "",           // opsional
+    nomor_urut: "",
     // bidang
     luas_m2: "",
     status_hak_tanah: "",
     penggunaan_tanah: [],
     keterangan: "",
     // peta
-    geojson: null,            // geometry Polygon (bukan Feature)
+    geojson: null,
   };
 
   const [formData, setFormData] = useState({
@@ -40,6 +40,8 @@ export default function TanahForm({
     penggunaan_tanah: initialData?.penggunaan_tanah || [],
     geojson: initialData?.geojson || null,
   });
+
+  const [errors, setErrors] = useState({});
 
   /** ================= Autocomplete Warga (tanpa tanah) ================= */
   const [wargaQuery, setWargaQuery] = useState("");
@@ -52,7 +54,6 @@ export default function TanahForm({
       const params = new URLSearchParams();
       if (q) params.set("q", q);
       params.set("per_page", "10");
-      // kalau backend mendukung:
       params.set("without_tanah", "1");
 
       const res = await fetch(`/api/warga?${params.toString()}`, {
@@ -72,15 +73,14 @@ export default function TanahForm({
         id: w.id,
         nama: w.nama_lengkap,
         nik: w.nik,
-        tanah_count: typeof w.tanah_count === "number" ? w.tanah_count : undefined,
+        tanah_count:
+          typeof w.tanah_count === "number" ? w.tanah_count : undefined,
       }));
 
-      // fallback filter FE: hanya yang belum punya tanah
       items = items.filter((it) =>
         it.tanah_count === undefined ? true : it.tanah_count === 0
       );
 
-      // saran berdasarkan query
       if (q) {
         const qq = q.toLowerCase();
         items = items
@@ -159,18 +159,49 @@ export default function TanahForm({
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((p) => ({ ...p, [name]: value }));
+
+    // Clear error when user changes field
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+  };
+
+  const handleLuasChange = (e) => {
+    const value = e.target.value;
+    const numValue = parseFloat(value);
+
+    setFormData((p) => ({ ...p, luas_m2: value }));
+
+    // Validate luas
+    if (value && (isNaN(numValue) || numValue <= 0)) {
+      setErrors((prev) => ({
+        ...prev,
+        luas_m2: "Luas harus lebih dari 0 m²",
+      }));
+    } else {
+      setErrors((prev) => ({ ...prev, luas_m2: "" }));
+    }
   };
 
   const handleStatusHakChange = (value) => {
     setFormData((p) => ({ ...p, status_hak_tanah: value }));
   };
 
-  const handlePenggunaanChange = (value) => {
+  // LOCK-1: Toggle penggunaan (hanya bisa pilih 1)
+  const togglePenggunaan = (value) => {
     setFormData((p) => {
       const curr = p.penggunaan_tanah || [];
-      const next = curr.includes(value) ? curr.filter((v) => v !== value) : [...curr, value];
+      const selected = curr[0] || "";
+
+      // Toggle: kalau sudah dipilih, unselect. Kalau belum, select.
+      const next = selected === value ? [] : [value];
       return { ...p, penggunaan_tanah: next };
     });
+
+    // Clear error
+    if (errors.penggunaan_tanah) {
+      setErrors((prev) => ({ ...prev, penggunaan_tanah: "" }));
+    }
   };
 
   const handleMapSave = (geoJsonGeometry) => {
@@ -179,12 +210,49 @@ export default function TanahForm({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Validasi minimum sebelum lempar ke onSubmit
-    if (!formData.warga_id) return alert("Pilih Warga terlebih dahulu!");
-    if (!formData.status_hak_tanah) return alert("Pilih Status Hak Tanah!");
-    if (!formData.luas_m2) return alert("Isi Luas Bidang (m²)!");
-    if (!formData.penggunaan_tanah?.length)
-      return alert("Pilih minimal 1 Penggunaan Tanah!");
+
+    // Clear previous errors
+    setErrors({});
+    let hasError = false;
+
+    // Validasi
+    if (!formData.warga_id) {
+      setErrors((prev) => ({
+        ...prev,
+        warga_id: "Pilih warga terlebih dahulu",
+      }));
+      hasError = true;
+    }
+
+    if (!formData.status_hak_tanah) {
+      setErrors((prev) => ({
+        ...prev,
+        status_hak_tanah: "Pilih status hak tanah",
+      }));
+      hasError = true;
+    }
+
+    const luasNum = parseFloat(formData.luas_m2);
+    if (!formData.luas_m2 || isNaN(luasNum) || luasNum <= 0) {
+      setErrors((prev) => ({ ...prev, luas_m2: "Luas minimal 1 m²" }));
+      hasError = true;
+    }
+
+    if (!formData.penggunaan_tanah?.length) {
+      setErrors((prev) => ({
+        ...prev,
+        penggunaan_tanah: "Pilih minimal 1 penggunaan tanah",
+      }));
+      hasError = true;
+    }
+
+    if (hasError) {
+      // Scroll to first error
+      const firstError = Object.keys(errors)[0];
+      const element = document.querySelector(`[name="${firstError}"]`);
+      element?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
 
     if (typeof onSubmit === "function") {
       await onSubmit(formData);
@@ -209,7 +277,7 @@ export default function TanahForm({
           {/* Autocomplete Warga */}
           <div className="relative">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Pilih Warga 
+              Pilih Warga <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -217,16 +285,23 @@ export default function TanahForm({
               onChange={(e) => onChangeWargaQuery(e.target.value)}
               onFocus={() => setWargaOpen(true)}
               placeholder="ketik nama / NIK…"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent ${
+                errors.warga_id ? "border-red-500" : "border-gray-300"
+              }`}
               readOnly={isIdentitasReadOnly}
             />
+            {errors.warga_id && (
+              <p className="mt-1 text-sm text-red-600">{errors.warga_id}</p>
+            )}
             {wargaOpen && !isIdentitasReadOnly && (
               <div
                 className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow max-h-56 overflow-auto"
                 onMouseLeave={() => setWargaOpen(false)}
               >
                 {wargaOptions.length === 0 ? (
-                  <div className="px-3 py-2 text-sm text-gray-500">Tidak ada hasil</div>
+                  <div className="px-3 py-2 text-sm text-gray-500">
+                    Tidak ada hasil
+                  </div>
                 ) : (
                   wargaOptions.map((opt) => (
                     <button
@@ -236,12 +311,15 @@ export default function TanahForm({
                       className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm"
                     >
                       <div className="flex items-center justify-between">
-                        <div className="font-medium text-gray-800">{opt.nama}</div>
-                        {typeof opt.tanah_count === "number" && opt.tanah_count === 0 && (
-                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs bg-emerald-100 text-emerald-700">
-                            tanpa tanah
-                          </span>
-                        )}
+                        <div className="font-medium text-gray-800">
+                          {opt.nama}
+                        </div>
+                        {typeof opt.tanah_count === "number" &&
+                          opt.tanah_count === 0 && (
+                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs bg-emerald-100 text-emerald-700">
+                              tanpa tanah
+                            </span>
+                          )}
                       </div>
                       <div className="text-gray-500">NIK: {opt.nik || "-"}</div>
                     </button>
@@ -251,9 +329,6 @@ export default function TanahForm({
             )}
             <input type="hidden" name="warga_id" value={formData.warga_id} />
           </div>
-
-          {/* Nomor Urut (opsional) */}
-          
         </div>
       </div>
 
@@ -270,7 +345,11 @@ export default function TanahForm({
         />
 
         {formData.geojson && (
-          <input type="hidden" name="geojson" value={JSON.stringify(formData.geojson)} />
+          <input
+            type="hidden"
+            name="geojson"
+            value={JSON.stringify(formData.geojson)}
+          />
         )}
       </div>
 
@@ -283,9 +362,15 @@ export default function TanahForm({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Status Hak */}
           <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Status Hak Tanah <span className="text-red-500">*</span>
+            </label>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {statusHakOptions.map((option) => (
-                <label key={option.value} className="flex items-center space-x-2 cursor-pointer">
+                <label
+                  key={option.value}
+                  className="flex items-center space-x-2 cursor-pointer"
+                >
                   <input
                     type="radio"
                     name="status_hak_tanah"
@@ -298,22 +383,37 @@ export default function TanahForm({
                 </label>
               ))}
             </div>
+            {errors.status_hak_tanah && (
+              <p className="mt-1 text-sm text-red-600">
+                {errors.status_hak_tanah}
+              </p>
+            )}
           </div>
 
           {/* Luas Bidang */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Luas Bidang (m²)
+              Luas Bidang (m²) <span className="text-red-500">*</span>
             </label>
             <input
               type="number"
               name="luas_m2"
               value={formData.luas_m2}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              onChange={handleLuasChange}
+              min="1"
+              step="0.01"
+              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent ${
+                errors.luas_m2 ? "border-red-500" : "border-gray-300"
+              }`}
               placeholder="contoh: 1200"
               required
             />
+            {errors.luas_m2 && (
+              <p className="mt-1 text-sm text-red-600">{errors.luas_m2}</p>
+            )}
+            {!errors.luas_m2 && (
+              <p className="text-xs text-gray-500 mt-1">Minimal 1 m²</p>
+            )}
           </div>
         </div>
       </div>
@@ -321,27 +421,42 @@ export default function TanahForm({
       {/* Penggunaan Tanah */}
       <div className="bg-white rounded-lg shadow p-6">
         <h3 className="text-lg font-semibold text-teal-700 mb-4 border-b border-teal-200 pb-2">
-          Penggunaan Tanah
+          Penggunaan Tanah <span className="text-red-500">*</span>
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {penggunaanTanahOptions.map((option) => (
-            <label key={option.value} className="flex items-center space-x-2 cursor-pointer">
-              <input
-                type="checkbox"
-                value={option.value}
-                checked={(formData.penggunaan_tanah || []).includes(option.value)}
-                onChange={() => handlePenggunaanChange(option.value)}
-                className="w-4 h-4 text-teal-700 focus:ring-teal-500 rounded"
-              />
-              <span className="text-sm text-gray-700">
-                {option.label.replace(/\b\w/g, (c) => c.toUpperCase())}
-              </span>
-            </label>
-          ))}
+          {penggunaanTanahOptions.map((option) => {
+            const selectedPenggunaan = formData.penggunaan_tanah?.[0] || "";
+            const selected = selectedPenggunaan === option.value;
+            const locked = !!selectedPenggunaan && !selected;
+
+            return (
+              <label
+                key={option.value}
+                className="flex items-center space-x-2 cursor-pointer"
+                title={locked ? "Hanya boleh pilih satu" : ""}
+              >
+                <input
+                  type="checkbox"
+                  value={option.value}
+                  checked={selected}
+                  disabled={locked}
+                  onChange={() => togglePenggunaan(option.value)}
+                  className="w-4 h-4 text-teal-700 focus:ring-teal-500 rounded disabled:opacity-40 disabled:cursor-not-allowed"
+                />
+                <span className="text-sm text-gray-700">
+                  {option.label.replace(/\b\w/g, (c) => c.toUpperCase())}
+                </span>
+              </label>
+            );
+          })}
         </div>
+        {errors.penggunaan_tanah && (
+          <p className="mt-2 text-sm text-red-600">{errors.penggunaan_tanah}</p>
+        )}
         <p className="text-xs text-gray-500 mt-2">
-          *Saat ini pengajuan membuat 1 bidang; sistem memakai penggunaan pertama yang dipilih.
+          *Maksimal satu pilihan. Klik lagi untuk membatalkan, lalu pilih yang
+          lain.
         </p>
       </div>
 
@@ -365,9 +480,16 @@ export default function TanahForm({
         <button
           type="submit"
           disabled={loading}
-          className="px-6 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 transition-colors disabled:opacity-60"
+          className="px-6 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 transition-colors disabled:opacity-60 flex items-center space-x-2"
         >
-          {loading ? "Menyimpan…" : "Simpan"}
+          {loading ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              <span>Menyimpan...</span>
+            </>
+          ) : (
+            <span>Simpan</span>
+          )}
         </button>
       </div>
     </form>

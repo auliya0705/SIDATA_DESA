@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, X, Image as ImageIcon } from "lucide-react";
+import { Upload, X, Image as ImageIcon, Calendar } from "lucide-react";
+import DatePicker from "react-datepicker";
+import { registerLocale } from "react-datepicker";
+import id from "date-fns/locale/id";
+import "react-datepicker/dist/react-datepicker.css";
+
+// Register Indonesian locale
+registerLocale("id", id);
 
 function sanitizeInitial(data) {
   if (!data) {
@@ -41,6 +48,18 @@ function sanitizeInitial(data) {
   };
 }
 
+// Calculate max birth date (17 years ago from today)
+function getMaxBirthDate() {
+  const today = new Date();
+  return new Date(today.getFullYear() - 17, today.getMonth(), today.getDate());
+}
+
+// Calculate min birth date (100 years ago - reasonable max age)
+function getMinBirthDate() {
+  const today = new Date();
+  return new Date(today.getFullYear() - 100, 0, 1);
+}
+
 export default function WargaForm({
   initialData = null,
   mode = "create",
@@ -50,6 +69,8 @@ export default function WargaForm({
   const router = useRouter();
 
   const [formData, setFormData] = useState(sanitizeInitial(initialData));
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [errors, setErrors] = useState({});
 
   const [previewImage, setPreviewImage] = useState(
     initialData?.foto_ktp_existing
@@ -57,10 +78,16 @@ export default function WargaForm({
       : null
   );
 
-  // Saat initialData berubah (halaman edit), set formData & preview ulang
+  // Parse initial date
   useEffect(() => {
     const sanitized = sanitizeInitial(initialData);
     setFormData(sanitized);
+
+    // Parse tanggal_lahir to Date object
+    if (sanitized.tanggal_lahir) {
+      setSelectedDate(new Date(sanitized.tanggal_lahir));
+    }
+
     setPreviewImage(
       sanitized.foto_ktp_existing
         ? `http://127.0.0.1:8000/storage/${sanitized.foto_ktp_existing}`
@@ -74,6 +101,49 @@ export default function WargaForm({
       ...prev,
       [name]: value ?? "",
     }));
+
+    // Clear error when user changes field
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+  };
+
+  const handleDateChange = (date) => {
+    setSelectedDate(date);
+
+    // Convert to YYYY-MM-DD format for backend
+    if (date) {
+      const formatted = date.toISOString().split("T")[0];
+      setFormData((prev) => ({
+        ...prev,
+        tanggal_lahir: formatted,
+      }));
+
+      // Validate age
+      validateAge(date);
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        tanggal_lahir: "",
+      }));
+    }
+  };
+
+  const validateAge = (date) => {
+    if (!date) return false;
+
+    const maxDate = getMaxBirthDate();
+
+    if (date > maxDate) {
+      setErrors((prev) => ({
+        ...prev,
+        tanggal_lahir: "Usia minimal 17 tahun (sudah memiliki KTP)",
+      }));
+      return false;
+    }
+
+    setErrors((prev) => ({ ...prev, tanggal_lahir: "" }));
+    return true;
   };
 
   const handleFileChange = (e) => {
@@ -112,10 +182,28 @@ export default function WargaForm({
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Clear previous errors
+    setErrors({});
+    let hasError = false;
+
+    // Validate NIK
     if (!/^\d{16}$/.test(formData.nik ?? "")) {
-      alert("NIK harus 16 digit angka!");
-      return;
+      setErrors((prev) => ({ ...prev, nik: "NIK harus 16 digit angka!" }));
+      hasError = true;
     }
+
+    // Validate age
+    if (!formData.tanggal_lahir || !validateAge(selectedDate)) {
+      if (!formData.tanggal_lahir) {
+        setErrors((prev) => ({
+          ...prev,
+          tanggal_lahir: "Tanggal lahir wajib diisi",
+        }));
+      }
+      hasError = true;
+    }
+
+    if (hasError) return;
 
     if (onSubmit) {
       await onSubmit(formData);
@@ -160,15 +248,36 @@ export default function WargaForm({
               name="nik"
               value={formData.nik ?? ""}
               onChange={handleChange}
+              onKeyPress={(e) => {
+                // Only allow numbers (0-9)
+                if (!/[0-9]/.test(e.key)) {
+                  e.preventDefault();
+                }
+              }}
+              onPaste={(e) => {
+                // Only allow pasting numbers
+                const pastedText = e.clipboardData.getData("text");
+                if (!/^\d+$/.test(pastedText)) {
+                  e.preventDefault();
+                }
+              }}
               maxLength={16}
               pattern="\d{16}"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent font-mono"
+              inputMode="numeric"
+              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent font-mono ${
+                errors.nik ? "border-red-500" : "border-gray-300"
+              }`}
               placeholder="3201123456781221"
               required
             />
-            <p className="text-xs text-gray-500 mt-1">
-              Masukkan 16 digit angka NIK sesuai KTP
-            </p>
+            {errors.nik && (
+              <p className="mt-1 text-sm text-red-600">{errors.nik}</p>
+            )}
+            {!errors.nik && (
+              <p className="text-xs text-gray-500 mt-1">
+                Masukkan 16 digit angka NIK sesuai KTP
+              </p>
+            )}
           </div>
 
           {/* Jenis Kelamin & Status Perkawinan */}
@@ -202,7 +311,6 @@ export default function WargaForm({
                 required
               >
                 <option value="">-- Pilih --</option>
-                {/* Sesuai enum di DB */}
                 <option value="BELUM KAWIN">Belum Kawin</option>
                 <option value="KAWIN">Kawin</option>
                 <option value="CERAI HIDUP">Cerai Hidup</option>
@@ -232,14 +340,41 @@ export default function WargaForm({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Tanggal Lahir <span className="text-red-500">*</span>
               </label>
-              <input
-                type="date"
-                name="tanggal_lahir"
-                value={formData.tanggal_lahir ?? ""}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                required
-              />
+              <div className="relative">
+                <DatePicker
+                  selected={selectedDate}
+                  onChange={handleDateChange}
+                  maxDate={getMaxBirthDate()}
+                  minDate={getMinBirthDate()}
+                  dateFormat="dd/MM/yyyy"
+                  showYearDropdown
+                  showMonthDropdown
+                  dropdownMode="select"
+                  yearDropdownItemNumber={100}
+                  scrollableYearDropdown
+                  locale="id"
+                  placeholderText="Pilih tanggal lahir"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent ${
+                    errors.tanggal_lahir ? "border-red-500" : "border-gray-300"
+                  }`}
+                  required
+                  autoComplete="off"
+                />
+                <Calendar
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"
+                  size={18}
+                />
+              </div>
+              {errors.tanggal_lahir && (
+                <p className="mt-1 text-sm text-red-600">
+                  {errors.tanggal_lahir}
+                </p>
+              )}
+              {!errors.tanggal_lahir && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Minimal umur 17 tahun (sudah memiliki KTP)
+                </p>
+              )}
             </div>
           </div>
 
@@ -424,9 +559,6 @@ export default function WargaForm({
         </h3>
 
         <div>
-          {/* <label className="block text-sm font-medium text-gray-700 mb-1"> 
-            Keterangan (opsional)
-          </label>*/}
           <textarea
             name="keterangan"
             value={formData.keterangan ?? ""}
@@ -472,6 +604,66 @@ export default function WargaForm({
           masuk ke sistem.
         </p>
       </div>
+
+      {/* Custom DatePicker Styles */}
+      <style jsx global>{`
+        .react-datepicker-wrapper {
+          width: 100%;
+        }
+
+        .react-datepicker__input-container input {
+          width: 100%;
+        }
+
+        .react-datepicker {
+          font-family: inherit;
+          border: 1px solid #e5e7eb;
+          border-radius: 0.5rem;
+          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        .react-datepicker__header {
+          background-color: #0f766e;
+          border-bottom: none;
+          border-radius: 0.5rem 0.5rem 0 0;
+          padding-top: 0.75rem;
+          padding-bottom: 0.5rem;
+        }
+
+        /* FIX: Bulan & Tahun di header - PUTIH */
+        .react-datepicker__current-month {
+          color: white !important;
+          font-weight: 600;
+          margin-bottom: 0.5rem;
+        }
+
+        /* Nama hari (Su, Mo, Tu, dst) - TEAL GELAP */
+        .react-datepicker__day-name {
+          color: #134e4a !important; /* teal-900 - TEAL GELAP */
+          font-weight: 600;
+          width: 2rem;
+          line-height: 2rem;
+          margin: 0.2rem;
+        }
+
+        /* FIX: Dropdown text (Februari, 2005) - PUTIH */
+        .react-datepicker__month-dropdown-container,
+        .react-datepicker__year-dropdown-container {
+          margin: 0 0.5rem;
+        }
+
+        .react-datepicker__month-read-view,
+        .react-datepicker__year-read-view {
+          color: white !important;
+          font-weight: 600;
+        }
+
+        .react-datepicker__month-read-view--down-arrow,
+        .react-datepicker__year-read-view--down-arrow {
+          border-color: white !important;
+          border-width: 2px 2px 0 0;
+        }
+      `}</style>
     </form>
   );
 }

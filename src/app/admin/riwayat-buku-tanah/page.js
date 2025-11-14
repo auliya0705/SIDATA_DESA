@@ -4,8 +4,15 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
-  Search, Calendar, ChevronLeft, ChevronRight,
-  Layers, Eye, Plus, Pencil, Trash,
+  Search,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Layers,
+  Eye,
+  Plus,
+  Pencil,
+  Trash,
 } from "lucide-react";
 import { useAuditKepala } from "@/hooks/useAudit";
 
@@ -18,22 +25,36 @@ const poppins = Poppins({
 });
 
 const jenisFromAction = (a = "") =>
-  a === "create" ? "Tambah" : a === "update" ? "Edit" : a === "delete" ? "Hapus" : a || "-";
+  a === "create"
+    ? "Tambah"
+    : a === "update"
+    ? "Edit"
+    : a === "delete"
+    ? "Hapus"
+    : a || "-";
 
 const formatTanggal = (iso) => {
   if (!iso) return "-";
   const d = new Date(iso);
-  const tgl = d.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+  const tgl = d.toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
   const jam = d
-    .toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    .toLocaleTimeString("id-ID", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })
     .replace(/:/g, ".");
   return `${tgl} || ${jam}`;
 };
 
 export default function RiwayatBukuTanahKepalaPage() {
   // === filters ===
-  const [qInput, setQInput] = useState("");     // ketik di input
-  const [query, setQuery] = useState("");       // dipakai fetch
+  const [qInput, setQInput] = useState(""); // ketik di input
+  const [query, setQuery] = useState(""); // dipakai fetch
   const [module, setModule] = useState("");
   const [status, setStatus] = useState("");
   const [month, setMonth] = useState("");
@@ -48,7 +69,10 @@ export default function RiwayatBukuTanahKepalaPage() {
   // rakit filters (pakai query, bukan qInput)
   const buildFilters = useCallback(() => {
     const f = { q: query, module, status };
-    if (month) { f.month = month; f.year = year; }
+    if (month) {
+      f.month = month;
+      f.year = year;
+    }
     return f;
   }, [query, module, status, month, year]);
 
@@ -57,7 +81,9 @@ export default function RiwayatBukuTanahKepalaPage() {
   }, [fetchAudit, page, perPage, buildFilters]);
 
   // initial + saat filter (kecuali qInput) berubah
-  useEffect(() => { runFetch(); }, [runFetch]);
+  useEffect(() => {
+    runFetch();
+  }, [runFetch]);
 
   // search button / Enter: commit qInput -> query
   const onSearch = () => {
@@ -66,12 +92,12 @@ export default function RiwayatBukuTanahKepalaPage() {
   };
 
   // ===== stat dari summary server (bukan pagination) =====
-  const totalAll     = result?.stats?.total ?? 0;
-  const countTambah  = result?.stats?.by_action?.create ?? 0;
-  const countEdit    = result?.stats?.by_action?.update ?? 0;
-  const countHapus   = result?.stats?.by_action?.delete ?? 0;
-  const totalPages   = result?.pagination?.last_page ?? 1;
-  const fromIndex    = result?.pagination?.from ?? 1;
+  const totalAll = result?.stats?.total ?? 0;
+  const countTambah = result?.stats?.by_action?.create ?? 0;
+  const countEdit = result?.stats?.by_action?.update ?? 0;
+  const countHapus = result?.stats?.by_action?.delete ?? 0;
+  const totalPages = result?.pagination?.last_page ?? 1;
+  const fromIndex = result?.pagination?.from ?? 1;
 
   const rows = useMemo(() => {
     const items = result?.data ?? [];
@@ -88,34 +114,49 @@ export default function RiwayatBukuTanahKepalaPage() {
 
   const months = [
     { value: "", label: "Semua Bulan" },
-    { value: "01", label: "Januari" }, { value: "02", label: "Februari" },
-    { value: "03", label: "Maret" },   { value: "04", label: "April" },
-    { value: "05", label: "Mei" },     { value: "06", label: "Juni" },
-    { value: "07", label: "Juli" },    { value: "08", label: "Agustus" },
-    { value: "09", label: "September" },{ value: "10", label: "Oktober" },
-    { value: "11", label: "November" },{ value: "12", label: "Desember" },
+    { value: "01", label: "Januari" },
+    { value: "02", label: "Februari" },
+    { value: "03", label: "Maret" },
+    { value: "04", label: "April" },
+    { value: "05", label: "Mei" },
+    { value: "06", label: "Juni" },
+    { value: "07", label: "Juli" },
+    { value: "08", label: "Agustus" },
+    { value: "09", label: "September" },
+    { value: "10", label: "Oktober" },
+    { value: "11", label: "November" },
+    { value: "12", label: "Desember" },
   ];
   const thisYear = new Date().getFullYear();
   const years = [thisYear - 1, thisYear, thisYear + 1].map(String);
 
   const badgeJenis = (j) =>
-    j === "Tambah" ? "bg-emerald-50 text-emerald-700"
-    : j === "Edit" ? "bg-blue-50 text-blue-700"
-    : j === "Hapus" ? "bg-rose-50 text-rose-700"
-    : "bg-gray-50 text-gray-700";
+    j === "Tambah"
+      ? "bg-emerald-50 text-emerald-700"
+      : j === "Edit"
+      ? "bg-blue-50 text-blue-700"
+      : j === "Hapus"
+      ? "bg-rose-50 text-rose-700"
+      : "bg-gray-50 text-gray-700";
   const badgeStatus = (s) =>
-    s === "approved" ? "bg-emerald-50 text-emerald-700"
-    : s === "rejected" ? "bg-rose-50 text-rose-700"
-    : "bg-amber-50 text-amber-800";
+    s === "approved"
+      ? "bg-emerald-50 text-emerald-700"
+      : s === "rejected"
+      ? "bg-rose-50 text-rose-700"
+      : "bg-amber-50 text-amber-800";
 
   return (
     // ⬇️ Wrapper Poppins + aturan global untuk form controls
     <div className={`${poppins.variable} space-y-6`}>
       <style jsx global>{`
-        select, option, input, textarea, button {
-          font-family: var(--font-poppins), ui-sans-serif, system-ui, -apple-system,
-            "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans",
-            "Liberation Sans", sans-serif !important;
+        select,
+        option,
+        input,
+        textarea,
+        button {
+          font-family: var(--font-poppins), ui-sans-serif, system-ui,
+            -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+            "Noto Sans", "Liberation Sans", sans-serif !important;
         }
       `}</style>
 
@@ -125,7 +166,9 @@ export default function RiwayatBukuTanahKepalaPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">Total Tambah</p>
-              <p className="text-4xl font-bold text-emerald-600 mt-1">{countTambah}</p>
+              <p className="text-4xl font-bold text-emerald-600 mt-1">
+                {countTambah}
+              </p>
             </div>
             <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center">
               <Plus className="text-emerald-600" size={20} />
@@ -136,7 +179,9 @@ export default function RiwayatBukuTanahKepalaPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">Total Edit</p>
-              <p className="text-4xl font-bold text-blue-600 mt-1">{countEdit}</p>
+              <p className="text-4xl font-bold text-blue-600 mt-1">
+                {countEdit}
+              </p>
             </div>
             <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
               <Pencil className="text-blue-600" size={20} />
@@ -147,7 +192,9 @@ export default function RiwayatBukuTanahKepalaPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">Total Hapus</p>
-              <p className="text-4xl font-bold text-rose-600 mt-1">{countHapus}</p>
+              <p className="text-4xl font-bold text-rose-600 mt-1">
+                {countHapus}
+              </p>
             </div>
             <div className="w-10 h-10 rounded-lg bg-rose-50 flex items-center justify-center">
               <Trash className="text-rose-600" size={20} />
@@ -168,7 +215,10 @@ export default function RiwayatBukuTanahKepalaPage() {
               <Layers size={18} className="text-gray-500" />
               <select
                 value={module}
-                onChange={(e) => { setModule(e.target.value); setPage(1); }}
+                onChange={(e) => {
+                  setModule(e.target.value);
+                  setPage(1);
+                }}
                 className="min-w-[160px] px-3 py-2 border border-gray-300 rounded-lg text-sm"
                 disabled={loading}
                 title="Modul"
@@ -180,15 +230,18 @@ export default function RiwayatBukuTanahKepalaPage() {
               </select>
             </div>
 
+            {/* FIXED: No Pending - only Approved & Rejected */}
             <select
               value={status}
-              onChange={(e) => { setStatus(e.target.value); setPage(1); }}
+              onChange={(e) => {
+                setStatus(e.target.value);
+                setPage(1);
+              }}
               className="min-w-[160px] px-3 py-2 border border-gray-300 rounded-lg text-sm"
               disabled={loading}
               title="Status"
             >
               <option value="">Semua Status</option>
-              <option value="pending">Pending</option>
               <option value="approved">Approved</option>
               <option value="rejected">Rejected</option>
             </select>
@@ -197,25 +250,37 @@ export default function RiwayatBukuTanahKepalaPage() {
               <Calendar size={18} className="text-gray-500" />
               <select
                 value={month}
-                onChange={(e) => { setMonth(e.target.value); setPage(1); }}
+                onChange={(e) => {
+                  setMonth(e.target.value);
+                  setPage(1);
+                }}
                 className="min-w-[150px] px-3 py-2 border border-gray-300 rounded-lg text-sm"
                 disabled={loading}
                 title="Bulan"
               >
                 {months.map((m, idx) => (
-                  <option key={`${m.value || "all"}-${idx}`} value={m.value}>{m.label}</option>
+                  <option key={`${m.value || "all"}-${idx}`} value={m.value}>
+                    {m.label}
+                  </option>
                 ))}
               </select>
             </div>
 
             <select
               value={year}
-              onChange={(e) => { setYear(e.target.value); setPage(1); }}
+              onChange={(e) => {
+                setYear(e.target.value);
+                setPage(1);
+              }}
               className="min-w-[120px] px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-100"
               disabled={loading || !month}
               title="Tahun"
             >
-              {years.map((y) => <option key={y} value={y}>{y}</option>)}
+              {years.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -225,13 +290,18 @@ export default function RiwayatBukuTanahKepalaPage() {
       <div className="bg-white border border-gray-200 rounded-xl p-5">
         <div className="flex flex-col md:flex-row items-center justify-between gap-3">
           <div className="relative w-full md:w-96">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              size={18}
+            />
             <input
               type="text"
               placeholder="Cari berdasarkan nama, keterangan…"
               value={qInput}
               onChange={(e) => setQInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") onSearch(); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") onSearch();
+              }}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
               disabled={loading}
             />
@@ -257,13 +327,27 @@ export default function RiwayatBukuTanahKepalaPage() {
         <table className="min-w-full">
           <thead className="bg-teal-700 text-white">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-semibold uppercase">#</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold uppercase">Modul</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold uppercase">Nama/Keterangan</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold uppercase">Jenis Perubahan</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold uppercase">Tanggal Pengajuan</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold uppercase">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold uppercase">Aksi</th>
+              <th className="px-6 py-3 text-left text-xs font-semibold uppercase">
+                #
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold uppercase">
+                Modul
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold uppercase">
+                Nama/Keterangan
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold uppercase">
+                Jenis Perubahan
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold uppercase">
+                Tanggal Pengajuan
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold uppercase">
+                Status
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold uppercase">
+                Aksi
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -273,12 +357,26 @@ export default function RiwayatBukuTanahKepalaPage() {
                 <td className="px-6 py-3 text-sm">Data {r.module}</td>
                 <td className="px-6 py-3 text-sm">{r.nama}</td>
                 <td className="px-6 py-3 text-sm">
-                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${badgeJenis(r.jenis)}`}>{r.jenis}</span>
+                  <span
+                    className={`px-2 py-1 rounded-full text-xs font-semibold ${badgeJenis(
+                      r.jenis
+                    )}`}
+                  >
+                    {r.jenis}
+                  </span>
                 </td>
                 <td className="px-6 py-3 text-sm">{r.tanggal}</td>
                 <td className="px-6 py-3 text-sm">
-                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${badgeStatus(r.status)}`}>
-                    {r.status === "approved" ? "Approved" : r.status === "rejected" ? "Rejected" : "Pending"}
+                  <span
+                    className={`px-2 py-1 rounded-full text-xs font-semibold ${badgeStatus(
+                      r.status
+                    )}`}
+                  >
+                    {r.status === "approved"
+                      ? "Approved"
+                      : r.status === "rejected"
+                      ? "Rejected"
+                      : "Pending"}
                   </span>
                 </td>
                 <td className="px-6 py-3 text-sm">
@@ -294,7 +392,10 @@ export default function RiwayatBukuTanahKepalaPage() {
             ))}
             {rows.length === 0 && !loading && (
               <tr>
-                <td colSpan={7} className="px-6 py-6 text-center text-sm text-gray-500">
+                <td
+                  colSpan={7}
+                  className="px-6 py-6 text-center text-sm text-gray-500"
+                >
                   Tidak ada data.
                 </td>
               </tr>
@@ -310,7 +411,10 @@ export default function RiwayatBukuTanahKepalaPage() {
             Show:{" "}
             <select
               value={perPage}
-              onChange={(e) => { setPerPage(Number(e.target.value)); setPage(1); }}
+              onChange={(e) => {
+                setPerPage(Number(e.target.value));
+                setPage(1);
+              }}
               className="ml-1 px-2 py-1 border border-gray-300 rounded"
               disabled={loading}
             >
@@ -319,7 +423,9 @@ export default function RiwayatBukuTanahKepalaPage() {
               <option value={50}>50 rows</option>
             </select>
             <span className="ml-2">| Total: {totalAll} data</span>
-            {error && <span className="ml-3 text-rose-600">Error: {String(error)}</span>}
+            {error && (
+              <span className="ml-3 text-rose-600">Error: {String(error)}</span>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -331,7 +437,9 @@ export default function RiwayatBukuTanahKepalaPage() {
             >
               <ChevronLeft size={18} />
             </button>
-            <span className="text-sm text-gray-600">Halaman {page} / {totalPages}</span>
+            <span className="text-sm text-gray-600">
+              Halaman {page} / {totalPages}
+            </span>
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={loading || page === totalPages}
