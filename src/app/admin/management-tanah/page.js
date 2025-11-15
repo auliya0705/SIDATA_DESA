@@ -123,50 +123,64 @@ export default function ManagementTanahPage() {
   };
 
   // 🔹 Export PDF Buku Tanah Desa, sinkron dengan filter bulan & tahun di UI
-  const handleExport = async () => {
-    try {
-      const token = getToken();
+const handleExport = async () => {
+  try {
+    const token = getToken();
 
-      const baseUrl = getApiUrl(
-        API_ENDPOINTS.STAFF.PROPOSALS.TANAH.EXPORTS.BUKU_TANAH
-      );
+    // pastikan endpointnya sama dengan yang dipakai di Postman:
+    // GET {{base_url}}/api/staff/management-tanah/export/pdf
+    const baseUrl = getApiUrl("/staff/management-tanah/export/pdf");
 
-      const params = new URLSearchParams();
-      if (selectedMonth) params.set("month", selectedMonth);
-      if (selectedYear) params.set("year", selectedYear);
+    const params = new URLSearchParams();
+    if (selectedMonth) params.set("month", selectedMonth);
+    if (selectedYear) params.set("year", selectedYear);
 
-      const url =
-        params.toString().length > 0 ? `${baseUrl}?${params.toString()}` : baseUrl;
+    const url =
+      params.toString().length > 0 ? `${baseUrl}?${params.toString()}` : baseUrl;
 
-      const res = await fetch(url, {
-        method: "GET",
-        headers: {
-          Accept: "application/pdf",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        // sengaja tidak set Accept biar backend bebas kirim PDF
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
 
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Gagal mengekspor PDF (${res.status}) ${text}`);
-      }
-
-      const blob = await res.blob();
-      const fileUrl = window.URL.createObjectURL(blob);
-
-      const a = document.createElement("a");
-      a.href = fileUrl;
-      a.download = "buku-tanah-desa.pdf";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(fileUrl);
-    } catch (err) {
-      console.error("Export PDF error:", err);
-      setDialogMessage(err?.message || "Gagal mengekspor Buku Tanah Desa.");
-      setDialogs((prev) => ({ ...prev, exportInfo: true }));
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Gagal mengekspor PDF (${res.status}) ${text}`);
     }
-  };
+
+    const contentType = res.headers.get("content-type") || "";
+
+    // Kalau ternyata bukan PDF, kemungkinan besar ini HTML error / redirect login
+    if (!contentType.includes("application/pdf")) {
+      const text = await res.text();
+      console.error("🚨 Bukan PDF, isi respons:", text);
+      throw new Error(
+        "Server tidak mengembalikan file PDF. Cek konsol browser untuk detail error."
+      );
+    }
+
+    // Ambil sebagai binary lalu buat Blob PDF
+    const arrayBuffer = await res.arrayBuffer();
+    const blob = new Blob([arrayBuffer], { type: "application/pdf" });
+    const fileUrl = window.URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = fileUrl;
+    a.download = "buku-tanah-desa.pdf";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(fileUrl);
+  } catch (err) {
+    console.error("Export PDF error:", err);
+    setDialogMessage(err?.message || "Gagal mengekspor Buku Tanah Desa.");
+    setDialogs((prev) => ({ ...prev, exportInfo: true }));
+  }
+};
+
 
   // 🔹 Export CSV Buku Tanah Desa -> {{base_url}}/api/staff/management-tanah/export/csv
   const handleExportCsv = async () => {
