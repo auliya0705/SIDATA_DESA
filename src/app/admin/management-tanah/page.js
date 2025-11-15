@@ -168,6 +168,52 @@ export default function ManagementTanahPage() {
     }
   };
 
+  // 🔹 Export CSV Buku Tanah Desa -> {{base_url}}/api/staff/management-tanah/export/csv
+  const handleExportCsv = async () => {
+    try {
+      const token = getToken();
+
+      const baseUrl = getApiUrl("/staff/management-tanah/export/csv");
+
+      const params = new URLSearchParams();
+      if (selectedMonth) params.set("month", selectedMonth);
+      if (selectedYear) params.set("year", selectedYear);
+
+      const url =
+        params.toString().length > 0 ? `${baseUrl}?${params.toString()}` : baseUrl;
+
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "text/csv",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Gagal mengekspor CSV (${res.status}) ${text}`);
+      }
+
+      const blob = await res.blob();
+      const fileUrl = window.URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = fileUrl;
+      a.download = "buku-tanah-desa.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(fileUrl);
+    } catch (err) {
+      console.error("Export CSV error:", err);
+      setDialogMessage(
+        err?.message || "Gagal mengekspor CSV Buku Tanah Desa."
+      );
+      setDialogs((prev) => ({ ...prev, exportInfo: true }));
+    }
+  };
+
   const handleDeleteClick = (id) => {
     if (!id) return;
     const row = rows.find((r) => r.id === id);
@@ -336,7 +382,15 @@ export default function ManagementTanahPage() {
               className="flex items-center justify-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors flex-1 md:flex-none"
             >
               <Download size={18} />
-              <span>Ekspor Data</span>
+              <span>Ekspor PDF</span>
+            </button>
+
+            <button
+              onClick={handleExportCsv}
+              className="flex items-center justify-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors flex-1 md:flex-none"
+            >
+              <Download size={18} />
+              <span>Ekspor CSV</span>
             </button>
 
             <Link

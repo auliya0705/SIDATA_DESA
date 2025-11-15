@@ -83,6 +83,7 @@ export const API_ENDPOINTS = {
         },
         EXPORTS: {
           BUKU_TANAH: "/staff/management-tanah/export/pdf",
+          BUKU_TANAH: "/staff/management-tanah/export/csv",
         },
       },
       WARGA: {
