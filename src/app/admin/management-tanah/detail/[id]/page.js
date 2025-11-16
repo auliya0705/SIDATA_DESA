@@ -193,13 +193,7 @@ export default function DetailTanahOwnerPage() {
             </div>
           </div>
 
-          <button
-            onClick={handleExport}
-            className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            <Download size={18} />
-            <span>Ekspor Data</span>
-          </button>
+          
         </div>
       </div>
 
