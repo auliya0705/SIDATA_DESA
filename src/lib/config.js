@@ -74,7 +74,8 @@ export const API_ENDPOINTS = {
       TANAH: {
         CREATE: "/staff/proposals/tanah",
         UPDATE: (id) => `/staff/proposals/tanah/${id}`,     // PATCH (atau POST + _method=PATCH)
-        DELETE: (id) => `/staff/proposals/tanah/${id}`,     // DELETE (atau POST + _method=DELETE)
+        DELETE: (id) => `/staff/proposals/tanah/${id}`,  // DELETE (atau POST + _method=DELETE)
+        IMPORT: "/staff/management-tanah/import/csv",      
         BIDANG: {
           CREATE: (tanahId) => `/staff/proposals/tanah/${tanahId}/bidang`,
           UPDATE: (id) => `/staff/proposals/bidang/${id}`,  // PUT
@@ -89,7 +90,8 @@ export const API_ENDPOINTS = {
       WARGA: {
         CREATE: "/staff/proposals/warga",
         UPDATE: (id) => `/staff/proposals/warga/${id}`,     // PATCH (atau POST + _method=PATCH)
-        DELETE: (id) => `/staff/proposals/warga/${id}`,     // DELETE (atau POST + _method=DELETE)
+        DELETE: (id) => `/staff/proposals/warga/${id}`,  // DELETE (atau POST + _method=DELETE)
+        IMPORT: "/staff/management-warga/import/csv",   
       },
     },
   },

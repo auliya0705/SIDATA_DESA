@@ -15,6 +15,8 @@ import WargaTable from "@/components/admin/WargaTable";
 import { useWarga } from "@/hooks/useWarga";
 import AlertDialog from "@/components/ui/AlertDialog";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { API_ENDPOINTS, getApiUrl } from "@/lib/config";
+import { getToken } from "@/lib/auth";
 
 export default function ManagementWargaPage() {
   const router = useRouter();
@@ -32,12 +34,13 @@ export default function ManagementWargaPage() {
     deleteConfirm: false,
     deleteSuccess: false,
     deleteError: false,
-    exportInfo: false,
+    exportInfo: false, // dipakai juga untuk info import
   });
   const [dialogMessage, setDialogMessage] = useState("");
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
 
   const didMountRef = useRef(false);
+  const importInputRef = useRef(null);
 
   // FIXED: Use function setState
   const closeDialog = (dialogName) => {
@@ -144,6 +147,67 @@ export default function ManagementWargaPage() {
   const handleExport = () => {
     setDialogMessage("Fitur ekspor data akan segera tersedia");
     setDialogs((prev) => ({ ...prev, exportInfo: true }));
+  };
+
+  // 🔹 Import CSV Warga (POST /staff/management-warga/import/csv)
+  const handleImportClick = () => {
+    if (importInputRef.current) {
+      importInputRef.current.click();
+    }
+  };
+
+  const handleImportFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const token = getToken();
+
+      const url = getApiUrl(API_ENDPOINTS.STAFF.PROPOSALS.WARGA.IMPORT);
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          // jangan set Content-Type, biar browser yang set boundary multipart
+        },
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Gagal mengimpor data warga (${res.status}) ${text}`);
+      }
+
+      let message = "Impor data warga berhasil.";
+      try {
+        const json = await res.json();
+        if (json?.message) message = json.message;
+      } catch {
+        // abaikan kalau bukan JSON
+      }
+
+      setDialogMessage(message);
+      setDialogs((prev) => ({ ...prev, exportInfo: true }));
+
+      // reload list setelah impor
+      await loadWargaData({
+        page: currentPage,
+        perPage: rowsPerPage,
+        search: searchQuery,
+      });
+    } catch (err) {
+      console.error("Import Warga error:", err);
+      setDialogMessage(err?.message || "Gagal mengimpor data warga.");
+      setDialogs((prev) => ({ ...prev, exportInfo: true }));
+    } finally {
+      if (importInputRef.current) {
+        importInputRef.current.value = "";
+      }
+    }
   };
 
   const handleDeleteClick = (id) => {
@@ -262,7 +326,23 @@ export default function ManagementWargaPage() {
 
           {/* Action Buttons */}
           <div className="flex gap-3 w-full md:w-auto">
-            
+            <button
+              type="button"
+              onClick={handleImportClick}
+              className="flex items-center justify-center space-x-2 px-4 py-2 border border-teal-600 text-teal-700 rounded-lg hover:bg-teal-50 transition-colors flex-1 md:flex-none"
+            >
+              <Download size={18} />
+              <span>Impor CSV</span>
+            </button>
+
+            {/* Hidden file input untuk impor warga */}
+            <input
+              type="file"
+              accept=".csv"
+              ref={importInputRef}
+              onChange={handleImportFileChange}
+              className="hidden"
+            />
 
             <Link
               href="/admin/management-warga/create"

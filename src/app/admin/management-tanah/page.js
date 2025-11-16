@@ -1,7 +1,7 @@
 // src/app/admin/management-tanah/page.js
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
 import {
   Search,
@@ -43,7 +43,7 @@ export default function ManagementTanahPage() {
     per_page: 10,
   });
 
-  // Dialog states - FIXED: Use function setState
+  // Dialog states - dipakai juga untuk info import/export
   const [dialogs, setDialogs] = useState({
     deleteConfirm: false,
     deleteSuccess: false,
@@ -52,6 +52,8 @@ export default function ManagementTanahPage() {
   });
   const [dialogMessage, setDialogMessage] = useState("");
   const [pendingDelete, setPendingDelete] = useState({ id: null, name: "" });
+
+  const importInputRef = useRef(null);
 
   // FIXED: Use function setState
   const closeDialog = (dialogName) => {
@@ -77,6 +79,7 @@ export default function ManagementTanahPage() {
       const res = await apiGet(`${API_ENDPOINTS.TANAH.LIST}${queryString}`);
       const mapped = (res?.data ?? []).map((d) => ({
         id: d.id,
+        nomor_urut: d.nomor_urut ?? d.no_urut ?? d.nomor ?? null,
         nama_pemilik: d.pemilik_nama ?? d?.pemilik?.nama_lengkap ?? "-",
         total_luas: Number(d.total_luas_m2 ?? d.jumlah_m2_computed ?? 0),
         jumlah_bidang: d.bidang_count ?? 0,
@@ -122,65 +125,120 @@ export default function ManagementTanahPage() {
     setCurrentPage(1);
   };
 
+  // 🔹 Import CSV Tanah (+ Bidang agregat)
+  const handleImportClick = () => {
+    if (importInputRef.current) {
+      importInputRef.current.click();
+    }
+  };
+
+  const handleImportFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const token = getToken();
+      // pakai endpoint dari config: /staff/management-tanah/import/csv
+      const url = getApiUrl(API_ENDPOINTS.STAFF.PROPOSALS.TANAH.IMPORT);
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          // jangan set Content-Type; biarkan browser yang set (multipart/form-data boundary)
+        },
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Gagal mengimpor data tanah (${res.status}) ${text}`);
+      }
+
+      let message = "Impor data tanah berhasil.";
+      try {
+        const json = await res.json();
+        if (json?.message) message = json.message;
+      } catch {
+        // kalau bukan JSON (misal kosong) abaikan
+      }
+
+      setDialogMessage(message);
+      setDialogs((prev) => ({ ...prev, exportInfo: true }));
+
+      // reload list setelah impor
+      await loadList();
+    } catch (err) {
+      console.error("Import Tanah error:", err);
+      setDialogMessage(err?.message || "Gagal mengimpor data tanah.");
+      setDialogs((prev) => ({ ...prev, exportInfo: true }));
+    } finally {
+      if (importInputRef.current) {
+        importInputRef.current.value = "";
+      }
+    }
+  };
+
   // 🔹 Export PDF Buku Tanah Desa, sinkron dengan filter bulan & tahun di UI
-const handleExport = async () => {
-  try {
-    const token = getToken();
+  const handleExport = async () => {
+    try {
+      const token = getToken();
 
-    // pastikan endpointnya sama dengan yang dipakai di Postman:
-    // GET {{base_url}}/api/staff/management-tanah/export/pdf
-    const baseUrl = getApiUrl("/staff/management-tanah/export/pdf");
+      // GET {{base_url}}/api/staff/management-tanah/export/pdf
+      const baseUrl = getApiUrl("/staff/management-tanah/export/pdf");
 
-    const params = new URLSearchParams();
-    if (selectedMonth) params.set("month", selectedMonth);
-    if (selectedYear) params.set("year", selectedYear);
+      const params = new URLSearchParams();
+      if (selectedMonth) params.set("month", selectedMonth);
+      if (selectedYear) params.set("year", selectedYear);
 
-    const url =
-      params.toString().length > 0 ? `${baseUrl}?${params.toString()}` : baseUrl;
+      const url =
+        params.toString().length > 0 ? `${baseUrl}?${params.toString()}` : baseUrl;
 
-    const res = await fetch(url, {
-      method: "GET",
-      headers: {
-        // sengaja tidak set Accept biar backend bebas kirim PDF
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-    });
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          // sengaja tidak set Accept biar backend bebas kirim PDF
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
 
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Gagal mengekspor PDF (${res.status}) ${text}`);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Gagal mengekspor PDF (${res.status}) ${text}`);
+      }
+
+      const contentType = res.headers.get("content-type") || "";
+
+      // Kalau ternyata bukan PDF, kemungkinan besar ini HTML error / redirect login
+      if (!contentType.includes("application/pdf")) {
+        const text = await res.text();
+        console.error("🚨 Bukan PDF, isi respons:", text);
+        throw new Error(
+          "Server tidak mengembalikan file PDF. Cek konsol browser untuk detail error."
+        );
+      }
+
+      // Ambil sebagai binary lalu buat Blob PDF
+      const arrayBuffer = await res.arrayBuffer();
+      const blob = new Blob([arrayBuffer], { type: "application/pdf" });
+      const fileUrl = window.URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = fileUrl;
+      a.download = "buku-tanah-desa.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(fileUrl);
+    } catch (err) {
+      console.error("Export PDF error:", err);
+      setDialogMessage(err?.message || "Gagal mengekspor Buku Tanah Desa.");
+      setDialogs((prev) => ({ ...prev, exportInfo: true }));
     }
-
-    const contentType = res.headers.get("content-type") || "";
-
-    // Kalau ternyata bukan PDF, kemungkinan besar ini HTML error / redirect login
-    if (!contentType.includes("application/pdf")) {
-      const text = await res.text();
-      console.error("🚨 Bukan PDF, isi respons:", text);
-      throw new Error(
-        "Server tidak mengembalikan file PDF. Cek konsol browser untuk detail error."
-      );
-    }
-
-    // Ambil sebagai binary lalu buat Blob PDF
-    const arrayBuffer = await res.arrayBuffer();
-    const blob = new Blob([arrayBuffer], { type: "application/pdf" });
-    const fileUrl = window.URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = fileUrl;
-    a.download = "buku-tanah-desa.pdf";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(fileUrl);
-  } catch (err) {
-    console.error("Export PDF error:", err);
-    setDialogMessage(err?.message || "Gagal mengekspor Buku Tanah Desa.");
-    setDialogs((prev) => ({ ...prev, exportInfo: true }));
-  }
-};
-
+  };
 
   // 🔹 Export CSV Buku Tanah Desa -> {{base_url}}/api/staff/management-tanah/export/csv
   const handleExportCsv = async () => {
@@ -391,6 +449,24 @@ const handleExport = async () => {
 
           {/* Action Buttons */}
           <div className="flex gap-3 w-full md:w-auto">
+            <button
+              type="button"
+              onClick={handleImportClick}
+              className="flex items-center justify-center space-x-2 px-4 py-2 border border-teal-600 text-teal-700 rounded-lg hover:bg-teal-50 transition-colors flex-1 md:flex-none"
+            >
+              <Download size={18} />
+              <span>Impor CSV</span>
+            </button>
+
+            {/* Hidden file input untuk impor tanah */}
+            <input
+              type="file"
+              accept=".csv"
+              ref={importInputRef}
+              onChange={handleImportFileChange}
+              className="hidden"
+            />
+
             <button
               onClick={handleExport}
               className="flex items-center justify-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors flex-1 md:flex-none"

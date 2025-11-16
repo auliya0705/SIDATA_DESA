@@ -72,6 +72,11 @@ export default function TanahTable({
                 No
               </th>
 
+              {/* Kolom baru: No Urut */}
+              <th className="px-6 py-4 text-left text-xs font-semibold uppercase">
+                No Urut
+              </th>
+
               {showIdColumn && (
                 <th className="px-6 py-4 text-left text-xs font-semibold uppercase">
                   ID
@@ -94,7 +99,15 @@ export default function TanahTable({
           <tbody className="bg-white divide-y divide-gray-200">
             {tanahData.map((tanah, index) => (
               <tr key={tanah.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 text-sm text-gray-700">{index + 1}</td>
+                {/* No urut di tabel (index) */}
+                <td className="px-6 py-4 text-sm text-gray-700">
+                  {index + 1}
+                </td>
+
+                {/* No Urut dari backend (tanah.nomor_urut) */}
+                <td className="px-6 py-4 text-sm text-gray-700">
+                  {tanah.nomor_urut || "-"}
+                </td>
 
                 {showIdColumn && (
                   <td className="px-6 py-4 text-sm text-gray-700">
