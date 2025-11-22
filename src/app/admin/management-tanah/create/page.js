@@ -6,6 +6,8 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import TanahForm from "@/components/admin/TanahForm";
 import AlertDialog from "@/components/ui/AlertDialog";
+import { API_ENDPOINTS } from "@/lib/config";
+import { apiPost } from "@/lib/api";
 
 export default function CreateTanahPage() {
   const router = useRouter();
@@ -58,42 +60,8 @@ export default function CreateTanahPage() {
         ],
       };
 
-      const res = await fetch("/api/staff/proposals/tanah", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const contentType = res.headers.get("content-type") || "";
-      const raw = await res.text();
-
-      if (!res.ok) {
-        let msg = `HTTP ${res.status}`;
-        if (contentType.includes("application/json")) {
-          try {
-            const data = JSON.parse(raw);
-            if (data?.errors) {
-              const flat = Object.entries(data.errors)
-                .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
-                .join("; ");
-              msg = data.message ? `${data.message} — ${flat}` : flat || msg;
-            } else {
-              msg = data.message || data.error || msg;
-            }
-          } catch {
-            msg = `${res.status}: ${res.statusText}`;
-          }
-        } else {
-          msg = raw?.trim()
-            ? raw.slice(0, 300)
-            : `${res.status}: ${res.statusText}`;
-        }
-        throw new Error(msg);
-      }
+      // 🔁 DIREFEKTOR: gunakan apiPost + API_ENDPOINTS, tanpa fetch manual
+      await apiPost(API_ENDPOINTS.STAFF.PROPOSALS.TANAH.CREATE, payload);
 
       setDialogMessage(
         "Proposal tanah berhasil dibuat! Menunggu persetujuan Kepala Desa."

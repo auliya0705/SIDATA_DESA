@@ -1,3 +1,4 @@
+// src/components/admin/MapInput.js
 "use client";
 
 import { useEffect, useState, useRef } from "react";
@@ -523,20 +524,20 @@ export default function MapInput({
         {isDrawing ? (
           <p>
             <strong>Mode Menggambar:</strong> Klik pada peta untuk menambah
-            titik polygon. Salah? Klik <strong>"Undo"</strong> untuk hapus titik
-            terakhir dan lanjut gambar lagi. Minimal 3 titik. Klik "Selesai
-            Menggambar" jika sudah.
+            titik polygon. Salah? Klik tombol{" "}
+            <strong>Undo</strong> untuk hapus titik terakhir dan lanjut gambar
+            lagi. Minimal 3 titik. Klik tombol Selesai Menggambar jika sudah.
           </p>
         ) : points.length > 0 ? (
           <p>
             <strong>Polygon Tergambar:</strong> {points.length} titik.
             {saved
               ? " ✓ Koordinat sudah tersimpan."
-              : " Klik 'Simpan Koordinat' untuk menyimpan."}
+              : " Klik tombol Simpan Koordinat untuk menyimpan."}
           </p>
         ) : (
           <p>
-            <strong>Petunjuk:</strong> Klik tombol "Mulai Menggambar" lalu klik
+            <strong>Petunjuk:</strong> Klik tombol Mulai Menggambar lalu klik
             pada peta untuk membuat polygon lokasi tanah.
           </p>
         )}

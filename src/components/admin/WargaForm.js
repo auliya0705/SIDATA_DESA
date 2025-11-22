@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, X, Image as ImageIcon, Calendar } from "lucide-react";
+import Image from "next/image";
 import DatePicker from "react-datepicker";
 import { registerLocale } from "react-datepicker";
 import id from "date-fns/locale/id";
@@ -501,11 +502,15 @@ export default function WargaForm({
           {/* Preview Image */}
           {previewImage && (
             <div className="relative w-full max-w-md">
-              <img
-                src={previewImage}
-                alt="Preview KTP"
-                className="w-full h-auto rounded-lg border-2 border-gray-200"
-              />
+              <div className="relative w-full h-auto">
+                <Image
+                  src={previewImage}
+                  alt="Preview KTP"
+                  width={640}
+                  height={400}
+                  className="w-full h-auto rounded-lg border-2 border-gray-200 object-contain"
+                />
+              </div>
               <button
                 type="button"
                 onClick={handleRemoveImage}

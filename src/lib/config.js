@@ -83,8 +83,8 @@ export const API_ENDPOINTS = {
           SHOW: (id) => `/bidang/${id}`,
         },
         EXPORTS: {
-          BUKU_TANAH: "/staff/management-tanah/export/pdf",
-          BUKU_TANAH: "/staff/management-tanah/export/csv",
+          BUKU_TANAH_PDF: "/staff/management-tanah/export/pdf",
+          BUKU_TANAH_CSV: "/staff/management-tanah/export/csv",
         },
       },
       WARGA: {

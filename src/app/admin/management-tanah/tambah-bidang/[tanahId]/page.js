@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import BidangForm from "@/components/admin/BidangForm";
 import AlertDialog from "@/components/ui/AlertDialog";
+import { API_ENDPOINTS, getApiUrl } from "@/lib/config";
 
 export default function TambahBidangTanahPage() {
   const params = useParams();
@@ -41,7 +42,7 @@ export default function TambahBidangTanahPage() {
   useEffect(() => {
     if (!tanahId || Number.isNaN(tanahId) || tanahId <= 0) {
       setDialogMessage("Parameter id tanah tidak valid.");
-      setDialogs({ ...dialogs, invalidId: true });
+      setDialogs((prev) => ({ ...prev, invalidId: true }));
     }
   }, [tanahId]);
 
@@ -50,19 +51,24 @@ export default function TambahBidangTanahPage() {
     let alive = true;
     (async () => {
       try {
-        const res = await fetch(`/api/tanah/${tanahId}`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-            Accept: "application/json",
-          },
-        });
+        const res = await fetch(
+          getApiUrl(API_ENDPOINTS.TANAH.SHOW(tanahId)),
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+              Accept: "application/json",
+            },
+          }
+        );
         const ct = res.headers.get("content-type") || "";
         const raw = await res.text();
         if (!res.ok) throw new Error(raw || `HTTP ${res.status}`);
         const data = ct.includes("application/json") ? JSON.parse(raw) : null;
         if (alive) {
           setOwnerName(
-            data?.pemilik?.nama_lengkap || data?.pemilik_nama || "(Tanpa nama)"
+            data?.pemilik?.nama_lengkap ||
+              data?.pemilik_nama ||
+              "(Tanpa nama)"
           );
         }
       } catch (e) {
@@ -79,15 +85,20 @@ export default function TambahBidangTanahPage() {
 
   const handleSubmit = async (payload) => {
     try {
-      const res = await fetch(`/api/staff/proposals/tanah/${tanahId}/bidang`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+      const res = await fetch(
+        getApiUrl(
+          API_ENDPOINTS.STAFF.PROPOSALS.TANAH.BIDANG.CREATE(tanahId)
+        ),
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
 
       const ct = res.headers.get("content-type") || "";
       const raw = await res.text();

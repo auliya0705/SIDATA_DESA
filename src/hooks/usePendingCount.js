@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useProposal } from "./useProposal";
 
 /**
@@ -12,7 +12,7 @@ export function usePendingCount() {
   const [loading, setLoading] = useState(false);
   const { getProposalList } = useProposal();
 
-  const fetchPendingCount = async () => {
+  const fetchPendingCount = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -34,7 +34,7 @@ export function usePendingCount() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [getProposalList]);
 
   useEffect(() => {
     // Only fetch if we're in browser and backend is accessible
@@ -53,7 +53,7 @@ export function usePendingCount() {
     }, 30000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchPendingCount]);
 
   return { pendingCount, loading, refresh: fetchPendingCount };
 }

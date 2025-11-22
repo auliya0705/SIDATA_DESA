@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { API_ENDPOINTS, getApiUrl } from "@/lib/config";
+import { getToken } from "@/lib/auth";
 
 /** Leaflet Map anti-SSR */
 const MapInput = dynamic(() => import("@/components/admin/MapInput"), {
@@ -56,9 +58,14 @@ export default function TanahForm({
       params.set("per_page", "10");
       params.set("without_tanah", "1");
 
-      const res = await fetch(`/api/warga?${params.toString()}`, {
+      const token = getToken();
+      const basePath = API_ENDPOINTS.WARGA?.LIST ?? "/warga";
+      const baseUrl = getApiUrl(basePath);
+      const url = `${baseUrl}?${params.toString()}`;
+
+      const res = await fetch(url, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           Accept: "application/json",
         },
       });
@@ -77,6 +84,7 @@ export default function TanahForm({
           typeof w.tanah_count === "number" ? w.tanah_count : undefined,
       }));
 
+      // filter yg tanpa tanah (if info tersedia)
       items = items.filter((it) =>
         it.tanah_count === undefined ? true : it.tanah_count === 0
       );
@@ -111,6 +119,9 @@ export default function TanahForm({
     }));
     setWargaQuery(`${opt.nama}${opt.nik ? ` (${opt.nik})` : ""}`);
     setWargaOpen(false);
+
+    // clear error kalau ada
+    setErrors((prev) => ({ ...prev, warga_id: "" }));
   };
 
   const onChangeWargaQuery = (val) => {
@@ -160,7 +171,6 @@ export default function TanahForm({
     const { name, value } = e.target;
     setFormData((p) => ({ ...p, [name]: value }));
 
-    // Clear error when user changes field
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
@@ -172,7 +182,6 @@ export default function TanahForm({
 
     setFormData((p) => ({ ...p, luas_m2: value }));
 
-    // Validate luas
     if (value && (isNaN(numValue) || numValue <= 0)) {
       setErrors((prev) => ({
         ...prev,
@@ -185,6 +194,7 @@ export default function TanahForm({
 
   const handleStatusHakChange = (value) => {
     setFormData((p) => ({ ...p, status_hak_tanah: value }));
+    setErrors((prev) => ({ ...prev, status_hak_tanah: "" }));
   };
 
   // LOCK-1: Toggle penggunaan (hanya bisa pilih 1)
@@ -192,16 +202,11 @@ export default function TanahForm({
     setFormData((p) => {
       const curr = p.penggunaan_tanah || [];
       const selected = curr[0] || "";
-
-      // Toggle: kalau sudah dipilih, unselect. Kalau belum, select.
       const next = selected === value ? [] : [value];
       return { ...p, penggunaan_tanah: next };
     });
 
-    // Clear error
-    if (errors.penggunaan_tanah) {
-      setErrors((prev) => ({ ...prev, penggunaan_tanah: "" }));
-    }
+    setErrors((prev) => ({ ...prev, penggunaan_tanah: "" }));
   };
 
   const handleMapSave = (geoJsonGeometry) => {
@@ -211,46 +216,36 @@ export default function TanahForm({
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Clear previous errors
-    setErrors({});
-    let hasError = false;
+    // build error lokal dulu
+    const newErrors = {};
 
-    // Validasi
     if (!formData.warga_id) {
-      setErrors((prev) => ({
-        ...prev,
-        warga_id: "Pilih warga terlebih dahulu",
-      }));
-      hasError = true;
+      newErrors.warga_id = "Pilih warga terlebih dahulu";
     }
 
     if (!formData.status_hak_tanah) {
-      setErrors((prev) => ({
-        ...prev,
-        status_hak_tanah: "Pilih status hak tanah",
-      }));
-      hasError = true;
+      newErrors.status_hak_tanah = "Pilih status hak tanah";
     }
 
     const luasNum = parseFloat(formData.luas_m2);
     if (!formData.luas_m2 || isNaN(luasNum) || luasNum <= 0) {
-      setErrors((prev) => ({ ...prev, luas_m2: "Luas minimal 1 m²" }));
-      hasError = true;
+      newErrors.luas_m2 = "Luas minimal 1 m²";
     }
 
     if (!formData.penggunaan_tanah?.length) {
-      setErrors((prev) => ({
-        ...prev,
-        penggunaan_tanah: "Pilih minimal 1 penggunaan tanah",
-      }));
-      hasError = true;
+      newErrors.penggunaan_tanah = "Pilih minimal 1 penggunaan tanah";
     }
 
-    if (hasError) {
-      // Scroll to first error
-      const firstError = Object.keys(errors)[0];
-      const element = document.querySelector(`[name="${firstError}"]`);
-      element?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+
+      // Scroll to first error (simple UX)
+      const firstErrorKey = Object.keys(newErrors)[0];
+      const el =
+        document.querySelector(`[name="${firstErrorKey}"]`) ||
+        document.querySelector(`[data-error="${firstErrorKey}"]`);
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+
       return;
     }
 
@@ -289,6 +284,7 @@ export default function TanahForm({
                 errors.warga_id ? "border-red-500" : "border-gray-300"
               }`}
               readOnly={isIdentitasReadOnly}
+              data-error="warga_id"
             />
             {errors.warga_id && (
               <p className="mt-1 text-sm text-red-600">{errors.warga_id}</p>
@@ -379,7 +375,9 @@ export default function TanahForm({
                     onChange={() => handleStatusHakChange(option.value)}
                     className="w-4 h-4 text-teal-700 focus:ring-teal-500"
                   />
-                  <span className="text-sm text-gray-700">{option.label}</span>
+                  <span className="text-sm text-gray-700">
+                    {option.label}
+                  </span>
                 </label>
               ))}
             </div>

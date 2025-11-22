@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import BidangForm from "@/components/admin/BidangForm";
 import AlertDialog from "@/components/ui/AlertDialog";
+import { API_ENDPOINTS, getApiUrl } from "@/lib/config";
+import { apiGet } from "@/lib/api";
 
 export default function EditBidangTanahPage() {
   const router = useRouter();
@@ -43,16 +45,9 @@ export default function EditBidangTanahPage() {
       setLoading(true);
       setFetchError("");
       try {
-        const res = await fetch(`/api/staff/proposals/bidang/${bidangId}`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-            Accept: "application/json",
-          },
-        });
-        const ct = res.headers.get("content-type") || "";
-        const raw = await res.text();
-        if (!res.ok) throw new Error(raw || `HTTP ${res.status}`);
-        const data = ct.includes("application/json") ? JSON.parse(raw) : null;
+        const data = await apiGet(
+          API_ENDPOINTS.STAFF.PROPOSALS.TANAH.BIDANG.SHOW(bidangId)
+        );
         if (!alive) return;
         setDetail(data);
       } catch (e) {
@@ -60,7 +55,7 @@ export default function EditBidangTanahPage() {
         const errorMsg = e?.message || "Gagal mengambil data bidang";
         setFetchError(errorMsg);
         setDialogMessage(errorMsg);
-        setDialogs({ ...dialogs, fetchError: true });
+        setDialogs((prev) => ({ ...prev, fetchError: true }));
       } finally {
         if (alive) setLoading(false);
       }
@@ -111,15 +106,20 @@ export default function EditBidangTanahPage() {
         ...(payload.srid ? { srid: payload.srid } : {}),
       };
 
-      const res = await fetch(`/api/staff/proposals/bidang/${bidangId}`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(jsonBody),
-      });
+      const res = await fetch(
+        getApiUrl(
+          API_ENDPOINTS.STAFF.PROPOSALS.TANAH.BIDANG.UPDATE(bidangId)
+        ),
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(jsonBody),
+        }
+      );
 
       const ct = res.headers.get("content-type") || "";
       const raw = await res.text();
@@ -143,7 +143,9 @@ export default function EditBidangTanahPage() {
       setDialogs({ ...dialogs, success: true });
     } catch (e) {
       console.error("❌ Update bidang error:", e);
-      setDialogMessage("Gagal mengajukan update bidang: " + (e?.message || e));
+      setDialogMessage(
+        "Gagal mengajukan update bidang: " + (e?.message || e)
+      );
       setDialogs({ ...dialogs, error: true });
     }
   };

@@ -7,6 +7,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import WargaForm from "@/components/admin/WargaForm";
 import AlertDialog from "@/components/ui/AlertDialog";
+import { API_ENDPOINTS, getApiUrl } from "@/lib/config";
 
 export default function CreateWargaPage() {
   const router = useRouter();
@@ -50,14 +51,17 @@ export default function CreateWargaPage() {
       });
 
       // POST request without manual Content-Type (let browser set boundary)
-      const response = await fetch("/api/staff/proposals/warga", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-          Accept: "application/json",
-        },
-        body: submitData,
-      });
+      const response = await fetch(
+        getApiUrl(API_ENDPOINTS.STAFF.PROPOSALS.WARGA.CREATE),
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+            Accept: "application/json",
+          },
+          body: submitData,
+        }
+      );
 
       // Detect response type
       const contentType = response.headers.get("content-type") || "";

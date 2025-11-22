@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { MapContainer, TileLayer, Polygon, Popup } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+import { API_ENDPOINTS, getApiUrl } from "@/lib/config";
 
 // Pongangan boundary coordinates, sesuai sm yang di osm
 const PONGANGAN_BOUNDARY = [
@@ -350,7 +351,12 @@ export default function MapComponent({ filter }) {
 
     params.set("include_props", "true");
 
-    return `/api/public/map${params.toString() ? `?${params.toString()}` : ""}`;
+    // ✅ pakai config: API_ENDPOINTS.PUBLIC.MAP kalau ada, fallback "/public/map"
+    const basePath = API_ENDPOINTS.PUBLIC?.MAP ?? "/public/map";
+    const baseUrl = getApiUrl(basePath);
+    const qs = params.toString();
+
+    return qs ? `${baseUrl}?${qs}` : baseUrl;
   }, [filter]);
 
   useEffect(() => {
@@ -376,7 +382,7 @@ export default function MapComponent({ filter }) {
       .finally(() => setLoading(false));
 
     return () => ac.abort();
-  }, [url]);
+  }, [url, filter]);
 
   // ✅ UPDATED: Pongangan center
   const defaultCenter = [-7.04932, 110.369085];

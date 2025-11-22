@@ -32,24 +32,23 @@ export default function TentangDesa() {
 
             {/* Kontainer Scroll */}
             <div className="h-48 overflow-y-auto pr-4">
-              {" "}
               {/* Tinggi tetap & scroll */}
               <p className="text-gray-600 leading-relaxed">
                 Kelurahan Pongangan, yang terletak di Kecamatan Gunungpati, Kota
                 Semarang, menampilkan diri sebagai wilayah yang berjarak sekitar
-                13 km dari pusat kota dengan slogan "CERIA" (Cepat, Empati,
-                Ramah, Ikhlas, Amanah). Dengan luas wilayah lebih dari 340
-                hektar yang mencakup 5 RW dan 28 RT, Kelurahan Pongangan
+                13 km dari pusat kota dengan slogan &quot;CERIA&quot; (Cepat,
+                Empati, Ramah, Ikhlas, Amanah). Dengan luas wilayah lebih dari
+                340 hektar yang mencakup 5 RW dan 28 RT, Kelurahan Pongangan
                 berupaya mewujudkan masyarakat yang sejahtera melalui
                 pengembangan berbagai potensi lokal. Sektor pariwisata menjadi
                 salah satu unggulan utama, menawarkan beragam destinasi menarik
                 mulai dari wisata alam seperti Sungai Kali Patat dan Agro Gua
-                Lima, wisata keluarga seperti The Pongo's, hingga wisata religi
-                di Makam Simbah Badrotin. Potensi ini didukung oleh pengembangan
-                Usaha Mikro, Kecil, dan Menengah (UMKM) yang aktif dibina,
-                seperti kerajinan daur ulang sampah dan pembuatan bonsai. Di
-                samping itu, Kelurahan Pongangan juga berkomitmen menjaga
-                kearifan lokal dan adat budaya, yang diwujudkan melalui
+                Lima, wisata keluarga seperti The Pongo&apos;s, hingga wisata
+                religi di Makam Simbah Badrotin. Potensi ini didukung oleh
+                pengembangan Usaha Mikro, Kecil, dan Menengah (UMKM) yang aktif
+                dibina, seperti kerajinan daur ulang sampah dan pembuatan
+                bonsai. Di samping itu, Kelurahan Pongangan juga berkomitmen
+                menjaga kearifan lokal dan adat budaya, yang diwujudkan melalui
                 penyelenggaraan Kirab Budaya tahunan, serta menyediakan
                 fasilitas olahraga lengkap bagi warganya sebagai bagian dari
                 harapan untuk membangun wilayah secara rukun dan produktif.

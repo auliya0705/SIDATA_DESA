@@ -16,7 +16,7 @@ export default function ApprovalDetailModal({
 
   const payload =
     parseMaybeJson(selectedItem.payload) ?? selectedItem.payload ?? {};
-  const module = selectedItem.module;
+  const moduleName = selectedItem.module;
   const action = selectedItem.action;
 
   return (
@@ -85,7 +85,7 @@ export default function ApprovalDetailModal({
           </div>
 
           {/* Formatted Data Display */}
-          {module === "bidang" && (
+          {moduleName === "bidang" && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <h4 className="font-semibold text-gray-800 mb-3">
                 📐 Data Bidang
@@ -150,7 +150,7 @@ export default function ApprovalDetailModal({
             </div>
           )}
 
-          {module === "tanah" && (
+          {moduleName === "tanah" && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
               <h4 className="font-semibold text-gray-800 mb-3">
                 🏞️ Data Tanah
@@ -176,7 +176,7 @@ export default function ApprovalDetailModal({
             </div>
           )}
 
-          {module === "warga" && action !== "update" && (
+          {moduleName === "warga" && action !== "update" && (
             <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
               <h4 className="font-semibold text-gray-800 mb-3">
                 👤 Data Warga

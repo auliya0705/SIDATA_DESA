@@ -187,8 +187,10 @@ export default function ManagementTanahPage() {
     try {
       const token = getToken();
 
-      // GET {{base_url}}/api/staff/management-tanah/export/pdf
-      const baseUrl = getApiUrl("/staff/management-tanah/export/pdf");
+      // ✅ pakai endpoint dari config, bukan string literal
+      const baseUrl = getApiUrl(
+        API_ENDPOINTS.STAFF.PROPOSALS.TANAH.EXPORTS.BUKU_TANAH_PDF
+      );
 
       const params = new URLSearchParams();
       if (selectedMonth) params.set("month", selectedMonth);
@@ -240,12 +242,15 @@ export default function ManagementTanahPage() {
     }
   };
 
-  // 🔹 Export CSV Buku Tanah Desa -> {{base_url}}/api/staff/management-tanah/export/csv
+  // 🔹 Export CSV Buku Tanah Desa
   const handleExportCsv = async () => {
     try {
       const token = getToken();
 
-      const baseUrl = getApiUrl("/staff/management-tanah/export/csv");
+      // ✅ pakai endpoint dari config, bukan string literal
+      const baseUrl = getApiUrl(
+        API_ENDPOINTS.STAFF.PROPOSALS.TANAH.EXPORTS.BUKU_TANAH_CSV
+      );
 
       const params = new URLSearchParams();
       if (selectedMonth) params.set("month", selectedMonth);
@@ -303,7 +308,10 @@ export default function ManagementTanahPage() {
       setDeletingId(pendingDelete.id);
       closeDialog("deleteConfirm");
 
-      await apiDelete(`/staff/proposals/tanah/${pendingDelete.id}`);
+      // ✅ pakai endpoint dari config, bukan string literal
+      await apiDelete(
+        API_ENDPOINTS.STAFF.PROPOSALS.TANAH.DELETE(pendingDelete.id)
+      );
 
       setDialogMessage(
         "Proposal hapus tanah berhasil dibuat. Menunggu persetujuan Kepala Desa."
@@ -435,7 +443,7 @@ export default function ManagementTanahPage() {
           {/* Search */}
           <div className="relative w-full md:w-96">
             <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text_gray-400"
               size={20}
             />
             <input

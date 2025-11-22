@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Edit, Trash2, User, MapPin, Phone } from "lucide-react";
 import Link from "next/link";
@@ -15,11 +15,7 @@ export default function DetailWargaPage() {
   const [wargaData, setWargaData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadWargaData();
-  }, [params.id]);
-
-  const loadWargaData = async () => {
+  const loadWargaData = useCallback(async () => {
     try {
       const data = await getWargaById(params.id);
       setWargaData(data);
@@ -29,7 +25,11 @@ export default function DetailWargaPage() {
       alert("Gagal memuat data warga: " + err.message);
       router.push("/admin/management-warga");
     }
-  };
+  }, [getWargaById, params.id, router]);
+
+  useEffect(() => {
+    loadWargaData();
+  }, [loadWargaData]);
 
   const handleDelete = async () => {
     if (!confirm("Yakin ingin menghapus data warga ini?")) {
