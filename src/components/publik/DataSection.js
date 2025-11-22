@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { fetcher } from "@/lib/fetcher";
+import { API_ENDPOINTS, getApiUrl } from "@/lib/config";
 import {
   PieChart,
   Pie,
@@ -15,9 +16,11 @@ import {
   ResponsiveContainer,
   Sector,
 } from "recharts";
+
 const COLORS = ["#005f56", "#b46a1f"];
 
-const API_URL = "http://127.0.0.1:8000/api/public/infografis/summary";
+// Pakai config + getApiUrl, bukan hardcode
+const API_URL = getApiUrl(API_ENDPOINTS.PUBLIC.INFOGRAFIS.SUMMARY);
 
 // singkatan + keterangan untuk tooltip
 const labelMap = {
@@ -204,6 +207,7 @@ export default function DataSection() {
   });
 
   const totalTanah = pieData.reduce((sum, d) => sum + d.value, 0) || 0;
+
   return (
     <section className="w-full px-10 py-16 bg-white">
       {/* ===== BAGIAN 1 ===== */}

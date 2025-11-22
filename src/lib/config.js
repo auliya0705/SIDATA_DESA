@@ -25,6 +25,12 @@ export const API_ENDPOINTS = {
   },
   DASHBOARD: "/dashboard",
   // Tanah (read-only publik/admin)
+  PUBLIC: {
+    INFOGRAFIS: {
+      SUMMARY: "/public/infografis/summary",
+    },
+  },
+  
   TANAH: {
     LIST: "/tanah",
     SHOW: (id) => `/tanah/${id}`,
