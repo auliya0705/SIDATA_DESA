@@ -9,6 +9,7 @@ export default function Home() {
     <main>
       <Hero />
       <TentangDesa />
+      <DataSection />
       <Gallery />
     </main>
   );
