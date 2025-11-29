@@ -23,13 +23,13 @@ export default function Hero() {
       {/* Konten */}
       <div className="relative z-10 text-center text-white px-4">
         <h1 className="text-3xl md:text-5xl font-bold mb-4">
-            Selamat Datang di <span className="text-teal-300">SIDATA DESA</span>
+          Selamat Datang di <span className="text-teal-300">SIDATA DESA</span>
         </h1>
         <p className="text-lg md:text-xl font-medium mb-6">
-            Website resmi Desa Pongangan yang menyediakan informasi dan data desa secara transparan dan akurat
+          Website resmi Desa Pongangan yang menyediakan informasi dan data tanah
+          desa secara transparan dan akurat
         </p>
       </div>
-      
     </section>
   );
 }

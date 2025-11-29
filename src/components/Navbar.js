@@ -10,6 +10,9 @@ export default function Navbar() {
   const [lastScrollY, setLastScrollY] = useState(0);
   const pathname = usePathname();
 
+  // HIDE NAVBAR ON LANDING PAGE
+  const isLandingPage = pathname === "/";
+
   useEffect(() => {
     const controlNavbar = () => {
       // Jika posisi scroll saat ini > posisi scroll sebelumnya (sedang scroll ke bawah)
@@ -29,6 +32,9 @@ export default function Navbar() {
     };
   }, [lastScrollY]);
 
+  // DON'T RENDER NAVBAR ON LANDING PAGE
+  if (isLandingPage) return null;
+
   return (
     <nav
       className={`fixed top-0 w-full bg-white shadow-md transition-transform duration-300 ease-in-out 
@@ -37,8 +43,8 @@ export default function Navbar() {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          {/* Logo */}
-          <Link href="/" className="flex items-center space-x-3">
+          {/* Logo - FIXED: Now links to /public instead of / */}
+          <Link href="/public" className="flex items-center space-x-3">
             <Image
               src="/images/logo2.png"
               alt="Logo"

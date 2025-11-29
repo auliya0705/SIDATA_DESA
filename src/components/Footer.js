@@ -1,3 +1,6 @@
+"use client";
+
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -9,19 +12,25 @@ import {
 } from "react-icons/fa";
 
 export default function Footer() {
+  const pathname = usePathname();
+
+  // HIDE FOOTER ON LANDING PAGE
+  const isLandingPage = pathname === "/";
+
+  if (isLandingPage) return null;
+
   return (
     <footer id="kontak" className="bg-teal-800 text-white">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {/* Kolom 1 Logo */}
           <div className="flex justify-center lg:justify-start">
-            <Link href="/" className="flex items-center space-x-1.5">
+            <Link href="/public" className="flex items-center space-x-1.5">
               <Image
                 src="/images/LOGO-SIDATA-DESA2.png"
-                alt="Logo Desa Banyubiru"
+                alt="Logo Desa Pongangan"
                 width={200}
                 height={200}
-                // className="rounded-full"
               />
             </Link>
           </div>
@@ -51,7 +60,7 @@ export default function Footer() {
               <li className="flex items-center justify-center lg:justify-start space-x-3">
                 <FaEnvelope className="inline-block" />
                 <a
-                  href="mailto:kontak@banyubiru.desa.id"
+                  href="mailto:kontak@pongangan.desa.id"
                   className="hover:text-white transition-colors"
                 >
                   kontak@pongangan.desa.id
