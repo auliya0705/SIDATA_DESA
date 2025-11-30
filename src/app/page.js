@@ -155,22 +155,6 @@ export default function LandingPage() {
                     </div>
                   </button>
                 </div>
-
-                {/* Stats */}
-                <div className="grid grid-cols-3 gap-4 pt-8 max-w-md mx-auto lg:mx-0">
-                  <div className="text-center p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20">
-                    <div className="text-2xl font-bold text-white">100+</div>
-                    <div className="text-xs text-teal-200 mt-1">Warga</div>
-                  </div>
-                  <div className="text-center p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20">
-                    <div className="text-2xl font-bold text-white">50+</div>
-                    <div className="text-xs text-teal-200 mt-1">Tanah</div>
-                  </div>
-                  <div className="text-center p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20">
-                    <div className="text-2xl font-bold text-white">75+</div>
-                    <div className="text-xs text-teal-200 mt-1">Bidang</div>
-                  </div>
-                </div>
               </div>
 
               {/* Right Side - Map */}
