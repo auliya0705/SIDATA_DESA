@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Clock, User, FileText } from "lucide-react";
-// ⬇️ pakai lib yang sudah kamu punya
+import { ArrowLeft, Clock, User } from "lucide-react";
 import { apiGet } from "@/lib/api";
 import { API_ENDPOINTS } from "@/lib/config";
 
@@ -14,7 +13,6 @@ export default function DetailRiwayatPage() {
   const [loading, setLoading] = useState(true);
   const uniq = (arr) => Array.from(new Set((arr || []).filter(Boolean)));
 
-  // helper: map action → label
   const jenisFromAction = (action) => {
     switch ((action || "").toLowerCase()) {
       case "create":
@@ -39,87 +37,117 @@ export default function DetailRiwayatPage() {
     }
   };
 
-  // Normalisasi payload supaya selalu { before, after }
-  // Normalisasi payload supaya selalu { before, after }
-function normalizePayloadForUI(res) {
-  const p = res?.payload;
-  if (!p) return { before: null, after: null };
+  function normalizePayloadForUI(res) {
+    const p = res?.payload;
+    if (!p) return { before: null, after: null };
 
-  const mod = (res?.module || "").toLowerCase();
-  const act = (res?.action || "").toLowerCase();
+    const mod = (res?.module || "").toLowerCase();
+    const act = (res?.action || "").toLowerCase();
 
-  const uniq = (arr) => Array.from(new Set((arr || []).filter(Boolean)));
+    const uniq = (arr) => Array.from(new Set((arr || []).filter(Boolean)));
 
-  // --- mapper snapshot -> field datar yang UI baca ---
-  const mapWarga = (raw = {}) => ({
-    nama_pemilik: raw.nama_lengkap ?? raw.nama ?? null,
-    nomor_urut: null,
-    jumlah_luas: null,
-    status_hak_tanah: null,
-    penggunaan_tanah: [],
-    keterangan: raw.keterangan ?? null,
-  });
-
-  const mapTanah = (raw = {}) => {
-    const bidang = Array.isArray(raw.bidang) ? raw.bidang : [];
-    const totalLuas = bidang.reduce((s, b) => s + (Number(b?.luas_m2) || 0), 0);
-    const statuses  = uniq(bidang.map((b) => b?.status_hak));
-    const uses      = uniq(bidang.map((b) => b?.penggunaan));
-    return {
-      nama_pemilik: raw.preview_pemilik?.nama ?? raw.nama_pemilik ?? raw.warga_nama ?? null,
-      nomor_urut:   raw.preview_pemilik?.nomor_urut ?? raw.nomor_urut ?? null,
-      jumlah_luas:  totalLuas || raw.luas_total || raw.jumlah_luas || raw.jumlah_m2
-        ? String(totalLuas || raw.luas_total || raw.jumlah_luas || raw.jumlah_m2) : null,
-      status_hak_tanah:
-        statuses.length === 1 ? statuses[0] : (statuses.length > 1 ? "CAMPURAN" : (raw.status_hak_tanah ?? null)),
-      penggunaan_tanah:
-        uses.length ? uses : (Array.isArray(raw.penggunaan_tanah) ? raw.penggunaan_tanah : (raw.penggunaan ? [raw.penggunaan] : [])),
+    const mapWarga = (raw = {}) => ({
+      nama_pemilik: raw.nama_lengkap ?? raw.nama ?? null,
+      nomor_urut: null,
+      jumlah_luas: null,
+      status_hak_tanah: null,
+      penggunaan_tanah: [],
       keterangan: raw.keterangan ?? null,
+    });
+
+    const mapTanah = (raw = {}) => {
+      const bidang = Array.isArray(raw.bidang) ? raw.bidang : [];
+      const totalLuas = bidang.reduce(
+        (s, b) => s + (Number(b?.luas_m2) || 0),
+        0
+      );
+      const statuses = uniq(bidang.map((b) => b?.status_hak));
+      const uses = uniq(bidang.map((b) => b?.penggunaan));
+      return {
+        nama_pemilik:
+          raw.preview_pemilik?.nama ??
+          raw.nama_pemilik ??
+          raw.warga_nama ??
+          null,
+        nomor_urut: raw.preview_pemilik?.nomor_urut ?? raw.nomor_urut ?? null,
+        jumlah_luas:
+          totalLuas || raw.luas_total || raw.jumlah_luas || raw.jumlah_m2
+            ? String(
+                totalLuas || raw.luas_total || raw.jumlah_luas || raw.jumlah_m2
+              )
+            : null,
+        status_hak_tanah:
+          statuses.length === 1
+            ? statuses[0]
+            : statuses.length > 1
+            ? "CAMPURAN"
+            : raw.status_hak_tanah ?? null,
+        penggunaan_tanah: uses.length
+          ? uses
+          : Array.isArray(raw.penggunaan_tanah)
+          ? raw.penggunaan_tanah
+          : raw.penggunaan
+          ? [raw.penggunaan]
+          : [],
+        keterangan: raw.keterangan ?? null,
+      };
     };
-  };
 
-  const mapBidang = (raw = {}) => ({
-    nama_pemilik: raw.preview_pemilik?.nama ?? raw.nama_pemilik ?? raw.warga_nama ?? null,
-    nomor_urut:   raw.preview_pemilik?.nomor_urut ?? raw.nomor_urut ?? null,
-    jumlah_luas:  raw.luas_m2 != null ? String(raw.luas_m2) : (raw.luas != null ? String(raw.luas) : null),
-    status_hak_tanah: raw.status_hak ?? null,
-    penggunaan_tanah: Array.isArray(raw.penggunaan_tanah) ? raw.penggunaan_tanah : (raw.penggunaan ? [raw.penggunaan] : []),
-    keterangan: raw.keterangan ?? null,
-  });
+    const mapBidang = (raw = {}) => ({
+      nama_pemilik:
+        raw.preview_pemilik?.nama ?? raw.nama_pemilik ?? raw.warga_nama ?? null,
+      nomor_urut: raw.preview_pemilik?.nomor_urut ?? raw.nomor_urut ?? null,
+      jumlah_luas:
+        raw.luas_m2 != null
+          ? String(raw.luas_m2)
+          : raw.luas != null
+          ? String(raw.luas)
+          : null,
+      status_hak_tanah: raw.status_hak ?? null,
+      penggunaan_tanah: Array.isArray(raw.penggunaan_tanah)
+        ? raw.penggunaan_tanah
+        : raw.penggunaan
+        ? [raw.penggunaan]
+        : [],
+      keterangan: raw.keterangan ?? null,
+    });
 
-  // --- jika payload sudah punya before/after ---
-  if (p.before || p.after) {
-    let before = p.before ?? null;
-    let after  = p.after ?? null;
+    if (p.before || p.after) {
+      let before = p.before ?? null;
+      let after = p.after ?? null;
 
-    // ⬇️ penting: beberapa backend taruh snapshot DELETE di "after"
-    if (act === "delete" && after && !before) {
-      before = after;   // anggap after = snapshot sebelum dihapus
-      after = null;
+      if (act === "delete" && after && !before) {
+        before = after;
+        after = null;
+      }
+
+      const applyMap = (x) =>
+        !x
+          ? null
+          : mod === "tanah"
+          ? mapTanah(x)
+          : mod === "bidang"
+          ? mapBidang(x)
+          : mod === "warga"
+          ? mapWarga(x)
+          : x;
+
+      return { before: applyMap(before), after: applyMap(after) };
     }
 
-    // flatten sesuai module
-    const applyMap = (x) =>
-      !x ? null :
-      mod === "tanah"  ? mapTanah(x)  :
-      mod === "bidang" ? mapBidang(x) :
-      mod === "warga"  ? mapWarga(x)  : x;
+    const snapshot =
+      mod === "warga"
+        ? mapWarga(p)
+        : mod === "tanah"
+        ? mapTanah(p)
+        : mod === "bidang"
+        ? mapBidang(p)
+        : p;
 
-    return { before: applyMap(before), after: applyMap(after) };
+    if (act === "create") return { before: null, after: snapshot };
+    if (act === "delete") return { before: snapshot, after: null };
+    return { before: p.before ?? null, after: p.after ?? snapshot };
   }
-
-  // --- payload flat (fallback lama) ---
-  const snapshot =
-    mod === "warga"  ? mapWarga(p)  :
-    mod === "tanah"  ? mapTanah(p)  :
-    mod === "bidang" ? mapBidang(p) : p;
-
-  if (act === "create") return { before: null,   after: snapshot };
-  if (act === "delete") return { before: snapshot, after: null };
-  // update tanpa before → tampilkan after saja
-  return { before: p.before ?? null, after: p.after ?? snapshot };
-}
-
 
   useEffect(() => {
     let mounted = true;
@@ -127,13 +155,13 @@ function normalizePayloadForUI(res) {
     (async () => {
       setLoading(true);
       try {
-        // fetch detail dari /kepala/approvals/{id}?include_payload=1
         const res = await apiGet(
           `${API_ENDPOINTS.PROPOSAL.SHOW(params.id)}?include_payload=1`
         );
 
-        // format tanggal & waktu dari submitted_at
-        const submittedAt = res?.submitted_at ? new Date(res.submitted_at) : null;
+        const submittedAt = res?.submitted_at
+          ? new Date(res.submitted_at)
+          : null;
         const tanggal = submittedAt
           ? submittedAt.toLocaleDateString("id-ID", {
               day: "numeric",
@@ -149,7 +177,6 @@ function normalizePayloadForUI(res) {
             })
           : "-";
 
-        // payload diff (bisa {before,after} atau null)
         const { before: data_sebelum, after: data_sesudah } =
           normalizePayloadForUI(res);
 
@@ -163,8 +190,8 @@ function normalizePayloadForUI(res) {
           waktu,
           admin: res?.reviewed_by?.name ?? res?.submitted_by?.name ?? "-",
           role_admin: res?.reviewed_by?.name ? "Kepala Desa" : "Pengaju",
-          keterangan: res?.review_note || "", // tampilkan alasan ditolak
-          status: res?.status || "", // badge status
+          keterangan: res?.review_note || "",
+          status: res?.status || "",
           data_sebelum,
           data_sesudah,
           _raw: res,
@@ -250,7 +277,6 @@ function normalizePayloadForUI(res) {
     );
   };
 
-  // ---------- Tambahan helper untuk mode Edit ----------
   const FIELDS = [
     { key: "nama_pemilik", label: "Nama Pemilik" },
     { key: "nomor_urut", label: "Nomor Urut" },
@@ -273,9 +299,7 @@ function normalizePayloadForUI(res) {
     if (Array.isArray(v)) return v.length ? v.join(", ") : "-";
     return v ?? "-";
   };
-  // -----------------------------------------------------
 
-  // diff hanya untuk Edit
   const isEdit = riwayatData.jenis_perubahan === "Edit";
   const hasBefore = hasAnyValue(riwayatData.data_sebelum);
   const hasAfter = hasAnyValue(riwayatData.data_sesudah);
@@ -313,7 +337,6 @@ function normalizePayloadForUI(res) {
               >
                 {riwayatData.jenis_perubahan}
               </span>
-              {/* Badge status */}
               {riwayatData.status && (
                 <span
                   className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusBadge(
@@ -340,10 +363,11 @@ function normalizePayloadForUI(res) {
                 </span>
               </div>
 
-              {/* Catatan review / alasan ditolak */}
               {riwayatData.keterangan && (
                 <div className="mt-2 rounded-md border border-red-200 bg-red-50 p-3 text-red-800">
-                  <div className="text-xs font-semibold mb-1">Catatan Review</div>
+                  <div className="text-xs font-semibold mb-1">
+                    Catatan Review
+                  </div>
                   <pre className="whitespace-pre-wrap text-xs">
                     {riwayatData.keterangan}
                   </pre>
@@ -354,17 +378,17 @@ function normalizePayloadForUI(res) {
         </div>
       </div>
 
-      {/* ==== MODE EDIT ==== */}
+      {/* MODE EDIT */}
       {isEdit && (
         <>
-          {/* (A) Tidak ada AFTER → tidak ada perubahan */}
           {!hasAfter && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <p className="text-gray-700">Tidak ada yang diubah pada riwayat ini.</p>
+              <p className="text-gray-700">
+                Tidak ada yang diubah pada riwayat ini.
+              </p>
             </div>
           )}
 
-          {/* (B) Hanya AFTER (backend tidak simpan before) → satu kolom ringkasan sesudah */}
           {!hasBefore && hasAfter && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
               <div className="bg-teal-700 text-white px-6 py-4">
@@ -386,7 +410,6 @@ function normalizePayloadForUI(res) {
             </div>
           )}
 
-          {/* (C) before & after ada → tabel perbandingan seperti semula */}
           {hasBefore && hasAfter && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
               <div className="bg-teal-700 text-white px-6 py-4">
@@ -434,8 +457,8 @@ function normalizePayloadForUI(res) {
 
               <div className="bg-gray-50 px-6 py-3 text-sm text-gray-600">
                 <p>
-                  💡 <strong>Tip:</strong> Field yang berubah ditandai dengan warna
-                  merah (sebelum) dan hijau (sesudah)
+                  💡 <strong>Tip:</strong> Field yang berubah ditandai dengan
+                  warna merah (sebelum) dan hijau (sesudah)
                 </p>
               </div>
             </div>
@@ -443,32 +466,105 @@ function normalizePayloadForUI(res) {
         </>
       )}
 
-      {/* Data Detail - For Tambah/Hapus */}
+      {/* MODE TAMBAH - FIXED! */}
       {riwayatData.jenis_perubahan === "Tambah" && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="bg-teal-700 text-white px-6 py-4">
             <h3 className="text-lg font-semibold">Data yang Ditambahkan</h3>
           </div>
-          <dl className="px-6">
-            {/* gunakan data_sesudah lebih dulu, fallback sebelum */}
-            {/* ... baris-baris field sama seperti punyamu ... */}
-          </dl>
+
+          {(() => {
+            const a = riwayatData.data_sesudah;
+            const hasAny =
+              a &&
+              (a.nama_pemilik ||
+                a.nomor_urut ||
+                a.jumlah_luas ||
+                a.status_hak_tanah ||
+                (a.penggunaan_tanah || []).length ||
+                a.keterangan);
+
+            if (!hasAny) {
+              return (
+                <div className="p-6 text-gray-700">
+                  Tidak tersedia data yang ditambahkan.
+                </div>
+              );
+            }
+
+            return (
+              <dl className="px-6">
+                <div className="grid grid-cols-3 py-3 border-b border-gray-100">
+                  <dt className="font-medium text-gray-700">Nama Pemilik</dt>
+                  <dd className="col-span-2 text-gray-900">
+                    {a?.nama_pemilik ?? "-"}
+                  </dd>
+                </div>
+                <div className="grid grid-cols-3 py-3 border-b border-gray-100">
+                  <dt className="font-medium text-gray-700">Nomor Urut</dt>
+                  <dd className="col-span-2 text-gray-900">
+                    {a?.nomor_urut ?? "-"}
+                  </dd>
+                </div>
+                <div className="grid grid-cols-3 py-3 border-b border-gray-100">
+                  <dt className="font-medium text-gray-700">
+                    Jumlah Luas (m²)
+                  </dt>
+                  <dd className="col-span-2 text-gray-900">
+                    {a?.jumlah_luas ?? "-"}
+                  </dd>
+                </div>
+                <div className="grid grid-cols-3 py-3 border-b border-gray-100">
+                  <dt className="font-medium text-gray-700">
+                    Status Hak Tanah
+                  </dt>
+                  <dd className="col-span-2 text-gray-900">
+                    {a?.status_hak_tanah ? (
+                      <span className="px-3 py-1 bg-teal-100 text-teal-800 rounded-full text-sm font-semibold">
+                        {a.status_hak_tanah}
+                      </span>
+                    ) : (
+                      "-"
+                    )}
+                  </dd>
+                </div>
+                <div className="grid grid-cols-3 py-3 border-b border-gray-100">
+                  <dt className="font-medium text-gray-700">
+                    Penggunaan Tanah
+                  </dt>
+                  <dd className="col-span-2 text-gray-900">
+                    {(a?.penggunaan_tanah || []).join(", ") || "-"}
+                  </dd>
+                </div>
+                <div className="grid grid-cols-3 py-3 border-b border-gray-100">
+                  <dt className="font-medium text-gray-700">Keterangan</dt>
+                  <dd className="col-span-2 text-gray-900">
+                    {a?.keterangan ?? "-"}
+                  </dd>
+                </div>
+              </dl>
+            );
+          })()}
         </div>
       )}
 
+      {/* MODE HAPUS */}
       {riwayatData.jenis_perubahan === "Hapus" && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="bg-teal-700 text-white px-6 py-4">
             <h3 className="text-lg font-semibold">Data yang Dihapus</h3>
           </div>
 
-          {/* Jika backend menyimpan snapshot sebelum, tampilkan.
-              Kalau tidak ada snapshot → tampilkan pesan info */}
           {(() => {
             const b = riwayatData.data_sebelum;
             const hasAny =
               b &&
-              (b.nama_pemilik || b.nomor_urut || b.jumlah_luas || b.status_hak_tanah || (b.penggunaan_tanah || []).length || b.keterangan);
+              (b.nama_pemilik ||
+                b.nomor_urut ||
+                b.jumlah_luas ||
+                b.status_hak_tanah ||
+                (b.penggunaan_tanah || []).length ||
+                b.keterangan);
 
             if (!hasAny) {
               return (
@@ -482,18 +578,28 @@ function normalizePayloadForUI(res) {
               <dl className="px-6">
                 <div className="grid grid-cols-3 py-3 border-b border-gray-100">
                   <dt className="font-medium text-gray-700">Nama Pemilik</dt>
-                  <dd className="col-span-2 text-gray-900">{b?.nama_pemilik ?? "-"}</dd>
+                  <dd className="col-span-2 text-gray-900">
+                    {b?.nama_pemilik ?? "-"}
+                  </dd>
                 </div>
                 <div className="grid grid-cols-3 py-3 border-b border-gray-100">
                   <dt className="font-medium text-gray-700">Nomor Urut</dt>
-                  <dd className="col-span-2 text-gray-900">{b?.nomor_urut ?? "-"}</dd>
+                  <dd className="col-span-2 text-gray-900">
+                    {b?.nomor_urut ?? "-"}
+                  </dd>
                 </div>
                 <div className="grid grid-cols-3 py-3 border-b border-gray-100">
-                  <dt className="font-medium text-gray-700">Jumlah Luas (m²)</dt>
-                  <dd className="col-span-2 text-gray-900">{b?.jumlah_luas ?? "-"}</dd>
+                  <dt className="font-medium text-gray-700">
+                    Jumlah Luas (m²)
+                  </dt>
+                  <dd className="col-span-2 text-gray-900">
+                    {b?.jumlah_luas ?? "-"}
+                  </dd>
                 </div>
                 <div className="grid grid-cols-3 py-3 border-b border-gray-100">
-                  <dt className="font-medium text-gray-700">Status Hak Tanah</dt>
+                  <dt className="font-medium text-gray-700">
+                    Status Hak Tanah
+                  </dt>
                   <dd className="col-span-2 text-gray-900">
                     <span className="px-3 py-1 bg-teal-100 text-teal-800 rounded-full text-sm font-semibold">
                       {b?.status_hak_tanah ?? "-"}
@@ -501,21 +607,24 @@ function normalizePayloadForUI(res) {
                   </dd>
                 </div>
                 <div className="grid grid-cols-3 py-3 border-b border-gray-100">
-                  <dt className="font-medium text-gray-700">Penggunaan Tanah</dt>
+                  <dt className="font-medium text-gray-700">
+                    Penggunaan Tanah
+                  </dt>
                   <dd className="col-span-2 text-gray-900">
                     {(b?.penggunaan_tanah || []).join(", ") || "-"}
                   </dd>
                 </div>
                 <div className="grid grid-cols-3 py-3 border-b border-gray-100">
                   <dt className="font-medium text-gray-700">Keterangan</dt>
-                  <dd className="col-span-2 text-gray-900">{b?.keterangan ?? "-"}</dd>
+                  <dd className="col-span-2 text-gray-900">
+                    {b?.keterangan ?? "-"}
+                  </dd>
                 </div>
               </dl>
             );
           })()}
         </div>
       )}
-
 
       {/* Action Buttons */}
       <div className="flex justify-end space-x-4">
